@@ -20,14 +20,17 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
   const { email, password, adminCode } = validation.data;
   const adminRegistrationCode = process.env.ADMIN_REGISTRATION_CODE;
 
-  // Default role is BASIC
   let role = 'BASIC';
-  // If the admin code is provided and correct, assign ADMIN role
-  if (adminRegistrationCode && adminCode === adminRegistrationCode) {
-    role = 'ADMIN';
-  } else if (adminCode && adminCode !== adminRegistrationCode) {
-    // Optional: If you want to return an error for incorrect admin codes
-    // return { error: 'Invalid Admin Code.' };
+
+  if (adminCode) {
+    if (!adminRegistrationCode) {
+        return { error: "Server configuration error: Admin registration is not enabled." };
+    }
+    if (adminCode === adminRegistrationCode) {
+        role = 'ADMIN';
+    } else {
+        return { error: 'Invalid Admin Code.' };
+    }
   }
 
   try {
