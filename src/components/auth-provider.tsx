@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         setUser(user);
         const tokenResult = await user.getIdTokenResult();
-        const userRole = (tokenResult.claims.role as 'ADMIN' | 'USER') || null;
+        const userRole = (tokenResult.claims.role as 'ADMIN' | 'USER') || 'USER';
         setRole(userRole);
       } else {
         setUser(null);

@@ -82,7 +82,7 @@ export default function LoginPage() {
       });
       try {
         const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-        // Force refresh of the token to get custom claims, especially for the new ADMIN
+        // Force refresh of the token to get custom claims, especially for the new ADMIN or USER
         await userCredential.user.getIdToken(true);
         router.push('/dashboard');
       } catch(e: any) {
