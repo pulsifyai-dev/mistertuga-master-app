@@ -69,7 +69,7 @@ const mockOrdersForSeeding: Omit<Order, 'id'>[] = [
       countryCode: "PT",
       date: "2024-05-20",
       status: "Pending Production",
-      customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351 912 345 678" },
+      customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351912345678" },
       trackingNumber: "",
       items: [
         { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/cup/80/80" },
@@ -80,7 +80,7 @@ const mockOrdersForSeeding: Omit<Order, 'id'>[] = [
       countryCode: "DE",
       date: "2024-05-19",
       status: "Pending Production",
-      customer: { name: "Hans Müller", address: "Musterstraße 1, Berlin", phone: "+49 176 12345678" },
+      customer: { name: "Hans Müller", address: "Musterstraße 1, Berlin", phone: "+4917612345678" },
       trackingNumber: "",
       items: [
         { name: "T-Shirt 'Eu Amo Berlim'", productId: "PROD-002", customization: "N/A", size: "L", quantity: 2, thumbnailUrl: "https://picsum.photos/seed/shirt/80/80" },
@@ -91,7 +91,7 @@ const mockOrdersForSeeding: Omit<Order, 'id'>[] = [
       countryCode: "ES",
       date: "2024-05-18",
       status: "Shipped",
-      customer: { name: "Maria García", address: "Calle Mayor 5, Madrid", phone: "+34 600 123 456" },
+      customer: { name: "Maria García", address: "Calle Mayor 5, Madrid", phone: "+34600123456" },
       trackingNumber: "ES123456789",
       items: [
         { name: "Almofada com Nome", productId: "PROD-003", customization: "'Sofia'", size: "40x40cm", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/pillow/80/80" },
@@ -191,7 +191,7 @@ export default function MasterShopifyOrdersPage() {
       customer: {
         name: data.customerName,
         address: data.customerAddress,
-        phone: data.customerPhone,
+        phone: data.customerPhone.replace(/\s/g, ''),
       },
     };
 
