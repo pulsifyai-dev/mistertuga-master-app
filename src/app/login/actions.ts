@@ -20,12 +20,10 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string }> {
   const { email, password, adminCode } = validation.data;
   const adminRegistrationCode = process.env.ADMIN_REGISTRATION_CODE;
 
-  if (!adminRegistrationCode) {
-    console.error('ADMIN_REGISTRATION_CODE is not set in environment variables.');
-    return { error: 'Server configuration error.' };
+  let role = 'FORNECEDOR';
+  if (adminRegistrationCode && adminCode === adminRegistrationCode) {
+    role = 'ADMIN';
   }
-  
-  const role = adminCode === adminRegistrationCode ? 'ADMIN' : 'FORNECEDOR';
 
   try {
     // Check if user already exists

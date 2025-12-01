@@ -1,21 +1,22 @@
-import admin from 'firebase-admin';
-import type { App } from 'firebase-admin/app';
+import * as admin from "firebase-admin";
 
-const serviceAccount: admin.ServiceAccount = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-};
+// Padrão Singleton para garantir que a inicialização só corre uma vez.
+if (!admin.apps.length) {
+  // Verificação crucial para garantir que as variáveis de ambiente foram carregadas.
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+    throw new Error("Firebase Admin SDK environment variables are not set. Check your .env.local file.");
+  }
 
-let adminApp: App;
-if (admin.apps.length === 0) {
-  adminApp = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      // A linha mais importante: formata a chave privada corretamente.
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
   });
-} else {
-  adminApp = admin.apps[0] as App;
 }
 
-
-export const adminAuth = admin.auth(adminApp);
-export const adminDb = admin.firestore(adminApp);
+// Exporta as instâncias dos serviços de admin, prontas a usar noutros ficheiros.
+export const adminAuth = admin.auth();
+export const adminDb = admin.firestore();
