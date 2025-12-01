@@ -125,13 +125,13 @@ export default function MasterShopifyOrdersPage() {
   }, [editingOrder, form]);
 
   useEffect(() => {
-    if (isUserLoading) return;
+    if (isUserLoading || !firestore) return;
     if (!user) {
       setPageLoading(false);
       return;
     }
 
-    const ordersCollection = collection(firestore, 'users', user.uid, 'orders');
+    const ordersCollection = collection(firestore, 'orders');
     const q = query(ordersCollection);
 
     setPageLoading(true);
@@ -159,7 +159,7 @@ export default function MasterShopifyOrdersPage() {
     setIsSeeding(true);
     try {
         const batch = writeBatch(firestore);
-        const ordersCollectionRef = collection(firestore, 'users', user.uid, 'orders');
+        const ordersCollectionRef = collection(firestore, 'orders');
 
         mockOrdersForSeeding.forEach((orderData, index) => {
             const countryCode = orderData.countryCode;
@@ -184,9 +184,9 @@ export default function MasterShopifyOrdersPage() {
   };
 
   const handleUpdateOrder = async (data: EditOrderSchema) => {
-    if (!user || !editingOrder) return;
+    if (!user || !editingOrder || !firestore) return;
     
-    const orderRef = doc(firestore, 'users', user.uid, 'orders', editingOrder.id);
+    const orderRef = doc(firestore, 'orders', editingOrder.id);
     const updatedData: Partial<Order> = {
       customer: {
         name: data.customerName,
@@ -221,14 +221,14 @@ export default function MasterShopifyOrdersPage() {
   };
 
   const handleSubmitTrackingNumber = (orderId: string) => {
-    if (!user) return;
+    if (!user || !firestore) return;
     const trackingNumber = trackingNumbers[orderId];
     if (!trackingNumber) {
       alert("Please enter a tracking number.");
       return;
     }
 
-    const orderRef = doc(firestore, 'users', user.uid, 'orders', orderId);
+    const orderRef = doc(firestore, 'orders', orderId);
     const updatedData = {
       trackingNumber: trackingNumber,
       status: 'Shipped' as const,

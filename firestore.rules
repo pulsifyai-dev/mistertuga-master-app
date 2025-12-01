@@ -1,35 +1,17 @@
 /**
- * This ruleset enforces a strict user-ownership security model. All user-specific
- * data, such as profiles, profit statistics and orders are isolated within a user's
- * own document tree, ensuring that users can only access their own information.
+ * This ruleset enforces a strict user-ownership security model for user profiles,
+ * but allows any authenticated user to access the shared 'orders' collection.
  *
  * Core Philosophy:
- * The primary security principle is data isolation. Access to any resource under
- * the `/users/{userId}` path is granted only if the requesting user's
- * authenticated UID matches the `userId` in the path. This prevents users from
- * reading, modifying, or deleting another user's data.
+ * - User data is private and can only be accessed by the owner.
+ * - Order data is collaborative and accessible to all logged-in users.
  *
  * Data Structure:
- * - /users/{userId}: Stores public-facing user profile information. Each user
+ * - /users/{userId}: Stores private user profile information. Each user
  *   has one document, keyed by their UID.
- * - /users/{userId}/profitStats/{profitStatId}: A private subcollection containing
- *   sensitive profit statistics for that user.
- * - /users/{userId}/orders/{orderId}: A private subcollection containing orders for that user.
+ * - /orders/{orderId}: A shared, top-level collection containing all Shopify orders.
  * - /roles_admin/{userId}: A lookup collection to identify users with administrative
- *   privileges. Client-side modifications to this collection are disabled to
- *   prevent privilege escalation.
- *
- * Key Security Decisions:
- * - User Data Privacy: All user-specific data is private. Users cannot read
- *   or write data belonging to other users.
- * - No User Enumeration: Listing the entire `/users` collection is explicitly
- *   disallowed to protect user privacy and prevent data scraping.
- * - Admin Role Management: The `/roles_admin` collection is read-only for clients.
- *   Assigning or revoking admin roles must be handled by a trusted server-side
- *   process (e.g., using the Admin SDK) to ensure security.
- * - Denormalization for Authorization: The rules rely on path-based ownership
- *   (`/users/{userId}`), which is highly performant and avoids costly `get()`
- *   calls for standard authorization checks.
+ *   privileges.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -48,72 +30,10 @@ service cloud.firestore {
 
     /**
      * Checks if the currently authenticated user's UID matches the provided userId.
-     * This is the foundation of the user-ownership model.
+     * This is the foundation of the user-ownership model for user profiles.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * Checks for ownership on an existing document. Used for update and delete
-     * operations to prevent acting on non-existent data.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * Validates a new User document on creation.
-     * Ensures the creator is the owner and the internal 'id' field matches the
-     * document's ID in the path for relational integrity.
-     */
-    function isValidUserCreate(userId) {
-      return isOwner(userId) && request.resource.data.id == userId;
-    }
-
-    /**
-     * Validates a User document on update.
-     * Ensures the owner is making the change and that the internal 'id' field,
-     * which links the document to the auth UID, is immutable.
-     */
-    function isValidUserUpdate(userId) {
-      let isIdImmutable = request.resource.data.id == resource.data.id;
-      return isExistingOwner(userId) && isIdImmutable;
-    }
-
-    /**
-     * Validates a new ProfitStat document on creation.
-     * Ensures the creator is the owner of the parent user document and that the
-     * internal 'userId' field is correctly set.
-     */
-    function isValidProfitStatCreate(userId) {
-      return isOwner(userId) && request.resource.data.userId == userId;
-    }
-
-    /**
-     * Validates a ProfitStat document on update.
-     * Ensures the owner is making the change and that the internal 'userId' field
-     * is immutable, preventing the stat from being reassigned to another user.
-     */
-    function isValidProfitStatUpdate(userId) {
-      let isUserIdImmutable = request.resource.data.userId == resource.data.userId;
-      return isExistingOwner(userId) && isUserIdImmutable;
-    }
-
-    /**
-     * Validates a new Order document on creation.
-     * Ensures the creator is the owner of the parent user document.
-     */
-    function isValidOrderCreate(userId) {
-      return isOwner(userId);
-    }
-    
-    /**
-     * Validates an Order document on update.
-     * Ensures the owner is making the change.
-     */
-    function isValidOrderUpdate(userId) {
-      return isExistingOwner(userId);
     }
 
     // ------------------------------------------------------------------------
@@ -123,61 +43,45 @@ service cloud.firestore {
     /**
      * @description Controls access to user profile documents.
      * @path /users/{userId}
-     * @allow (create) An authenticated user creating their own user document for the first time.
-     * @deny (get) An authenticated user trying to read another user's profile document.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
+     * @allow (get) An authenticated user reading their own profile.
+     * @deny (list) Listing all users is disallowed to protect privacy.
+     * @principle Restricts access to a user's own data tree.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get, update, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow list: if false;
-      allow create: if isValidUserCreate(userId);
-      allow update: if isValidUserUpdate(userId);
-      allow delete: if isExistingOwner(userId);
 
       /**
-       * @description Controls access to a user's private profit statistics.
-       * @path /users/{userId}/profitStats/{profitStatId}
-       * @allow (list) An authenticated user listing their own profit statistics.
-       * @deny (create) An authenticated user trying to create a profit stat under another user's account.
-       * @principle Enforces document ownership for a user's private subcollections.
+       * @description DEPRECATED: Subcollections for profitStats are no longer used
+       * in the updated data model but are kept for reference or future rules.
        */
       match /profitStats/{profitStatId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isValidProfitStatCreate(userId);
-        allow update: if isValidProfitStatUpdate(userId);
-        allow delete: if isExistingOwner(userId);
+        allow read, write: if false; // Example of disabling a path
       }
-      
-      /**
-       * @description Controls access to a user's Shopify orders.
-       * @path /users/{userId}/orders/{orderId}
-       * @allow (list) An authenticated user listing their own orders.
-       * @deny (create) An authenticated user trying to create an order under another user's account.
-       * @principle Enforces document ownership for a user's private subcollections.
-       */
-      match /orders/{orderId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isValidOrderCreate(userId);
-        allow update: if isValidOrderUpdate(userId);
-        allow delete: if isExistingOwner(userId);
-      }
+    }
+    
+    /**
+     * @description Controls access to the shared, top-level orders collection.
+     * @path /orders/{orderId}
+     * @allow (read, write) Any authenticated user can read or write to any order.
+     * @principle Enables a collaborative workflow where all users manage a central
+     * list of orders.
+     */
+    match /orders/{orderId} {
+      allow read, write: if isSignedIn();
     }
 
     /**
      * @description Read-only collection for identifying admin users.
      * @path /roles_admin/{userId}
      * @allow (get) Any signed-in user checking if a specific user ID has admin privileges.
-     * @deny (create) Any user attempting to grant themselves admin privileges.
-     * @principle Prevents client-side privilege escalation. Admin roles must be managed by a trusted backend.
+     * @deny (write) Prevents client-side privilege escalation.
+     * @principle Admin roles must be managed by a trusted backend.
      */
     match /roles_admin/{userId} {
       allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow list, write: if false;
     }
   }
 }

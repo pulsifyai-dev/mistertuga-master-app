@@ -167,26 +167,6 @@
         }
       },
       {
-        "path": "/users/{userId}/profitStats/{profitStatId}",
-        "definition": {
-          "entityName": "ProfitStat",
-          "schema": {
-            "$ref": "#/backend/entities/ProfitStat"
-          },
-          "description": "Stores profit statistics for a given user. Authorization is based on matching request.auth.uid to the userId parent document.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user to which the profit stat belongs."
-            },
-            {
-              "name": "profitStatId",
-              "description": "The unique identifier of the profit stat entry."
-            }
-          ]
-        }
-      },
-      {
         "path": "/roles_admin/{userId}",
         "definition": {
           "entityName": "AdminRole",
@@ -203,18 +183,14 @@
         }
       },
        {
-        "path": "/users/{userId}/orders/{orderId}",
+        "path": "/orders/{orderId}",
         "definition": {
           "entityName": "Order",
           "schema": {
             "$ref": "#/backend/entities/Order"
           },
-          "description": "Stores Shopify orders for a given user.",
+          "description": "Stores all Shopify orders in a single, shared collection.",
           "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user to which the order belongs."
-            },
             {
               "name": "orderId",
               "description": "The unique identifier of the order."
@@ -223,6 +199,6 @@
         }
       }
     ],
-    "reasoning": "This Firestore structure prioritizes security and scalability by adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling. User data, profit statistics and orders are stored in separate collections to ensure clear ownership and access control. The structure leverages path-based ownership for user-related data, making security rules straightforward. Specifically, the `/users/{userId}` collection stores user profiles. The `/users/{userId}/profitStats/{profitStatId}` and `/users/{userId}/orders/{orderId}` subcollections stores profit statistics and orders associated with each user, maintaining a clear 1:N relationship and making ownership explicit through the path. This design eliminates the need for `get()` calls in security rules because authorization is based solely on the `request.auth.uid` matching the `userId` in the path, ensuring Authorization Independence. It facilitates secure list operations (QAPs) as rules can easily filter based on path-based ownership without scanning unrelated data. The structure allows to create atomic operations using transactions and batches."
+    "reasoning": "This Firestore structure prioritizes security and scalability by adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling. User data is stored in a separate collection to ensure clear ownership and access control. The top-level 'orders' collection is shared among all authenticated users to facilitate a collaborative workflow. This design eliminates the need for `get()` calls in security rules for standard user authorization because it's based solely on the `request.auth.uid` matching the `userId` in the path."
   }
 }
