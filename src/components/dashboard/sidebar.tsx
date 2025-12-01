@@ -17,6 +17,7 @@ import {
   UsersRound,
   LogOut,
   Settings,
+  ShoppingBag,
 } from 'lucide-react';
 import { Logo } from '@/components/icons/logo';
 import { useAuth } from '@/hooks/use-auth';
@@ -40,6 +41,12 @@ export default function DashboardSidebar() {
       href: '/dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
+    },
+    {
+      href: '/master-shopify-orders',
+      label: 'Shopify Orders',
+      icon: ShoppingBag,
+      adminOnly: true,
     },
     {
       href: '/fornecedores',
