@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Loader2 } from 'lucide-react';
-import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { Loader2, Database } from 'lucide-react';
+import { collection, query, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -50,6 +50,41 @@ const countryFlags: { [key: string]: React.ReactNode } = {
   ES: <FlagES />,
 };
 
+const mockOrdersForSeeding: Omit<Order, 'id'>[] = [
+    {
+      country: "Portugal",
+      countryCode: "PT",
+      date: "2024-05-20",
+      status: "Pending Production",
+      customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351 912 345 678" },
+      trackingNumber: "",
+      items: [
+        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/cup/80/80" },
+      ],
+    },
+    {
+      country: "Germany",
+      countryCode: "DE",
+      date: "2024-05-19",
+      status: "Pending Production",
+      customer: { name: "Hans Müller", address: "Musterstraße 1, Berlin", phone: "+49 176 12345678" },
+      trackingNumber: "",
+      items: [
+        { name: "T-Shirt 'Eu Amo Berlim'", productId: "PROD-002", customization: "N/A", size: "L", quantity: 2, thumbnailUrl: "https://picsum.photos/seed/shirt/80/80" },
+      ],
+    },
+    {
+      country: "Spain",
+      countryCode: "ES",
+      date: "2024-05-18",
+      status: "Shipped",
+      customer: { name: "Maria García", address: "Calle Mayor 5, Madrid", phone: "+34 600 123 456" },
+      trackingNumber: "ES123456789",
+      items: [
+        { name: "Almofada com Nome", productId: "PROD-003", customization: "'Sofia'", size: "40x40cm", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/pillow/80/80" },
+      ],
+    },
+];
 
 export default function MasterShopifyOrdersPage() {
   const { firestore, user, isUserLoading } = useFirebase();
@@ -57,6 +92,7 @@ export default function MasterShopifyOrdersPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [trackingNumbers, setTrackingNumbers] = useState<{ [key: string]: string }>({});
+  const [isSeeding, setIsSeeding] = useState(false);
 
   useEffect(() => {
     if (isUserLoading) return;
@@ -68,6 +104,7 @@ export default function MasterShopifyOrdersPage() {
     const ordersCollection = collection(firestore, 'users', user.uid, 'orders');
     const q = query(ordersCollection);
 
+    setPageLoading(true);
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const userOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
       setOrders(userOrders);
@@ -82,6 +119,33 @@ export default function MasterShopifyOrdersPage() {
 
   const handleTrackingNumberChange = (orderId: string, value: string) => {
     setTrackingNumbers(prev => ({ ...prev, [orderId]: value }));
+  };
+  
+  const seedDatabase = async () => {
+    if (!user || !firestore) {
+        alert("You must be logged in to seed the database.");
+        return;
+    }
+    setIsSeeding(true);
+    try {
+        const batch = writeBatch(firestore);
+        const ordersCollectionRef = collection(firestore, 'users', user.uid, 'orders');
+
+        mockOrdersForSeeding.forEach((orderData, index) => {
+            const countryCode = orderData.countryCode;
+            const newId = `${countryCode}#101${index + 4}`;
+            const docRef = doc(ordersCollectionRef, newId);
+            batch.set(docRef, orderData);
+        });
+
+        await batch.commit();
+        console.log("Database seeded successfully!");
+    } catch (error) {
+        console.error("Error seeding database: ", error);
+        alert("Failed to seed database. Check console for details.");
+    } finally {
+        setIsSeeding(false);
+    }
   };
 
   const handleSubmitTrackingNumber = (orderId: string) => {
@@ -157,110 +221,118 @@ export default function MasterShopifyOrdersPage() {
         <Button variant={activeFilter === 'ES' ? 'default' : 'outline'} onClick={() => setActiveFilter('ES')}><FlagES /> <span className="ml-2">Spain</span></Button>
       </div>
       
+       {!pageLoading && orders.length === 0 && (
+          <Card className="flex flex-col items-center justify-center p-8 gap-4 text-center">
+              <Database className="w-12 h-12 text-muted-foreground" />
+              <div className="flex flex-col gap-1">
+                  <h3 className="font-headline text-lg font-semibold">O seu banco de dados está vazio</h3>
+                  <p className="text-sm text-muted-foreground">Clique no botão abaixo para preencher com dados de exemplo.</p>
+              </div>
+              <Button onClick={seedDatabase} disabled={isSeeding}>
+                  {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2" />}
+                  {isSeeding ? 'Aguarde...' : 'Adicionar Dados de Exemplo'}
+              </Button>
+          </Card>
+      )}
+
       {/* Pending Production Section */}
-      <section>
-        <h2 className="text-xl font-semibold font-headline mb-4">Pending Production</h2>
-        <div className="flex flex-col gap-4">
-          {pendingOrders.length > 0 ? (
-            pendingOrders.map(order => (
-              <Card key={order.id} className="bg-card">
-                <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
-                  <div className="flex items-center gap-2 font-semibold text-card-foreground">
-                    {countryFlags[order.countryCode]}
-                    <span>{order.id}</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">{order.date}</div>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
-                  <div className="md:col-span-2 flex flex-col gap-4">
-                    {order.items.map((item, index) => (
-                      <div key={index} className="flex items-start gap-4">
-                        <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
-                        <div className="text-sm">
-                          <p className="font-semibold">{item.name}</p>
-                          <p className="text-muted-foreground">ID: {item.productId}</p>
-                          <p className="text-muted-foreground">Customization: {item.customization}</p>
-                          <p className="text-muted-foreground">Size: {item.size}</p>
-                          <p className="text-muted-foreground">Qty: {item.quantity}</p>
+      {pendingOrders.length > 0 && (
+        <section>
+          <h2 className="text-xl font-semibold font-headline mb-4">Pending Production</h2>
+          <div className="flex flex-col gap-4">
+            {pendingOrders.map(order => (
+                <Card key={order.id} className="bg-card">
+                  <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
+                    <div className="flex items-center gap-2 font-semibold text-card-foreground">
+                      {countryFlags[order.countryCode]}
+                      <span>{order.id}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">{order.date}</div>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
+                    <div className="md:col-span-2 flex flex-col gap-4">
+                      {order.items.map((item, index) => (
+                        <div key={index} className="flex items-start gap-4">
+                          <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
+                          <div className="text-sm">
+                            <p className="font-semibold">{item.name}</p>
+                            <p className="text-muted-foreground">ID: {item.productId}</p>
+                            <p className="text-muted-foreground">Customization: {item.customization}</p>
+                            <p className="text-muted-foreground">Size: {item.size}</p>
+                            <p className="text-muted-foreground">Qty: {item.quantity}</p>
+                          </div>
                         </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-col justify-between gap-4">
+                       <div className="bg-muted/50 p-3 rounded-lg text-sm">
+                        <h3 className="font-semibold mb-2">Customer Details</h3>
+                        <p>{order.customer.name}</p>
+                        <p className="text-muted-foreground">{order.customer.address}</p>
+                        <p className="text-muted-foreground">{order.customer.phone}</p>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex flex-col justify-between gap-4">
-                     <div className="bg-muted/50 p-3 rounded-lg text-sm">
-                      <h3 className="font-semibold mb-2">Customer Details</h3>
-                      <p>{order.customer.name}</p>
-                      <p className="text-muted-foreground">{order.customer.address}</p>
-                      <p className="text-muted-foreground">{order.customer.phone}</p>
+                      <div className="flex flex-col gap-2">
+                         <Input
+                            type="text"
+                            placeholder="Número de rastreio"
+                            value={trackingNumbers[order.id] || ''}
+                            onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
+                          />
+                         <Button onClick={() => handleSubmitTrackingNumber(order.id)}>Submit</Button>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                       <Input
-                          type="text"
-                          placeholder="Número de rastreio"
-                          value={trackingNumbers[order.id] || ''}
-                          onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
-                        />
-                       <Button onClick={() => handleSubmitTrackingNumber(order.id)}>Submit</Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <p className="text-muted-foreground">No pending orders found for the selected filter.</p>
-          )}
-        </div>
-      </section>
+                  </CardContent>
+                </Card>
+              ))}
+          </div>
+        </section>
+      )}
       
-      <Separator />
+      {pendingOrders.length > 0 && shippedOrders.length > 0 && <Separator />}
 
       {/* Shipped Orders Section */}
-      <section>
-        <h2 className="text-xl font-semibold font-headline mb-4">Shipped Orders</h2>
-        <div className="flex flex-col gap-4">
-           {shippedOrders.length > 0 ? (
-            shippedOrders.map(order => (
-              <Card key={order.id} className="bg-card">
-                 <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
-                  <div className="flex items-center gap-2 font-semibold text-card-foreground">
-                    {countryFlags[order.countryCode]}
-                    <span>{order.id}</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">{order.date}</div>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
-                   <div className="md:col-span-2 flex flex-col gap-4">
-                    {order.items.map((item, index) => (
-                      <div key={index} className="flex items-start gap-4">
-                        <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
-                        <div className="text-sm">
-                          <p className="font-semibold">{item.name}</p>
-                          <p className="text-muted-foreground">ID: {item.productId}</p>
-                          <p className="text-muted-foreground">Customization: {item.customization}</p>
-                          <p className="text-muted-foreground">Size: {item.size}</p>
-                          <p className="text-muted-foreground">Qty: {item.quantity}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                   <div className="bg-muted/50 p-3 rounded-lg text-sm self-start">
-                      <h3 className="font-semibold mb-2">Customer Details</h3>
-                      <p>{order.customer.name}</p>
-                      <p className="text-muted-foreground">{order.customer.address}</p>
-                      <p className="text-muted-foreground">{order.customer.phone}</p>
-                      <p className="font-semibold mt-2">Tracking: <span className="font-normal text-primary">{order.trackingNumber}</span></p>
+      {shippedOrders.length > 0 && (
+        <section>
+          <h2 className="text-xl font-semibold font-headline mb-4">Shipped Orders</h2>
+          <div className="flex flex-col gap-4">
+             {shippedOrders.map(order => (
+                <Card key={order.id} className="bg-card">
+                   <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
+                    <div className="flex items-center gap-2 font-semibold text-card-foreground">
+                      {countryFlags[order.countryCode]}
+                      <span>{order.id}</span>
                     </div>
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <p className="text-muted-foreground">No shipped orders found for the selected filter.</p>
-          )}
-        </div>
-      </section>
+                    <div className="text-sm text-muted-foreground">{order.date}</div>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
+                     <div className="md:col-span-2 flex flex-col gap-4">
+                      {order.items.map((item, index) => (
+                        <div key={index} className="flex items-start gap-4">
+                          <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
+                          <div className="text-sm">
+                            <p className="font-semibold">{item.name}</p>
+                            <p className="text-muted-foreground">ID: {item.productId}</p>
+                            <p className="text-muted-foreground">Customization: {item.customization}</p>
+                            <p className="text-muted-foreground">Size: {item.size}</p>
+                            <p className="text-muted-foreground">Qty: {item.quantity}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                     <div className="bg-muted/50 p-3 rounded-lg text-sm self-start">
+                        <h3 className="font-semibold mb-2">Customer Details</h3>
+                        <p>{order.customer.name}</p>
+                        <p className="text-muted-foreground">{order.customer.address}</p>
+                        <p className="text-muted-foreground">{order.customer.phone}</p>
+                        <p className="font-semibold mt-2">Tracking: <span className="font-normal text-primary">{order.trackingNumber}</span></p>
+                      </div>
+                  </CardContent>
+                </Card>
+              ))}
+          </div>
+        </section>
+      )}
 
     </div>
   );
 }
-
-    
