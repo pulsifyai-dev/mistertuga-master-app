@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
-  role: 'ADMIN' | 'USER' | null;
+  role: 'ADMIN' | 'BASIC' | null;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -17,7 +17,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<'ADMIN' | 'USER' | null>(null);
+  const [role, setRole] = useState<'ADMIN' | 'BASIC' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         setUser(user);
         const tokenResult = await user.getIdTokenResult();
-        const userRole = (tokenResult.claims.role as 'ADMIN' | 'USER') || 'USER';
+        const userRole = (tokenResult.claims.role as 'ADMIN' | 'BASIC') || 'BASIC';
         setRole(userRole);
       } else {
         setUser(null);

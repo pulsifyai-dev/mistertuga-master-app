@@ -20,8 +20,8 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
   const { email, password, adminCode } = validation.data;
   const adminRegistrationCode = process.env.ADMIN_REGISTRATION_CODE;
 
-  // Default role is USER
-  let role = 'USER';
+  // Default role is BASIC
+  let role = 'BASIC';
   // If the admin code is provided and correct, assign ADMIN role
   if (adminRegistrationCode && adminCode === adminRegistrationCode) {
     role = 'ADMIN';
