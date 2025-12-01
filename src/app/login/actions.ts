@@ -24,30 +24,25 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
 
   if (adminCode) {
     if (!adminRegistrationCode) {
-        // Se o código de admin não está configurado no servidor, ninguém pode se registrar como admin.
         return { error: "Server configuration error: Admin registration is not enabled." };
     }
     if (adminCode === adminRegistrationCode) {
         role = 'ADMIN';
     } else {
-        // Se um código foi inserido mas está incorreto.
         return { error: 'Invalid Admin Code.' };
     }
   }
 
   try {
-    // Check if user already exists
     try {
         await adminAuth.getUserByEmail(email);
         return { error: 'An account with this email already exists.' };
     } catch (error: any) {
         if (error.code !== 'auth/user-not-found') {
-            throw error; // Re-throw unexpected errors
+            throw error;
         }
-        // If user not found, continue to create user
     }
 
-    // Create user in Firebase Auth
     const userRecord = await adminAuth.createUser({
       email,
       password,
@@ -55,11 +50,10 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
       disabled: false,
     });
 
-    // Set custom claims for role-based access control
     await adminAuth.setCustomUserClaims(userRecord.uid, { role });
 
-    // Store user information in Firestore
     await adminDb.collection('users').doc(userRecord.uid).set({
+      id: userRecord.uid, // Add this line
       email: userRecord.email,
       role: role,
       createdAt: new Date().toISOString(),
@@ -68,7 +62,6 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
     return { role };
   } catch (error: any) {
     console.error('Error during sign up:', error);
-    // Provide a more generic error to the user for security
     return { error: 'An error occurred during sign up. Please try again.' };
   }
 }

@@ -14,7 +14,6 @@ import {
 import {
   LayoutDashboard,
   BarChart3,
-  UsersRound,
   LogOut,
   Settings,
   ShoppingBag,
@@ -47,11 +46,6 @@ export default function DashboardSidebar() {
       label: 'Shopify Orders',
       icon: ShoppingBag,
       adminOnly: true,
-    },
-    {
-      href: '/fornecedores',
-      label: 'Fornecedores',
-      icon: UsersRound,
     },
     {
       href: '/profit-stats',

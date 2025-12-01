@@ -17,7 +17,7 @@
         },
         "role": {
           "type": "string",
-          "description": "Role of the user (e.g., ADMIN, FORNECEDOR)."
+          "description": "Role of the user (e.g., ADMIN, BASIC)."
         }
       },
       "required": [
@@ -56,6 +56,90 @@
         "date",
         "profit"
       ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents a Shopify order.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order."
+        },
+        "country": {
+          "type": "string"
+        },
+        "countryCode": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending Production", "Shipped"]
+        },
+        "customer": {
+          "$ref": "#/backend/entities/Customer"
+        },
+        "trackingNumber": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/backend/entities/Product"
+          }
+        }
+      },
+      "required": ["id", "country", "countryCode", "date", "status", "customer", "items"]
+    },
+    "Customer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Customer",
+      "type": "object",
+      "description": "Represents a customer.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "address", "phone"]
+    },
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a product in an order.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "productId": {
+          "type": "string"
+        },
+        "customization": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "thumbnailUrl": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "productId", "customization", "size", "quantity", "thumbnailUrl"]
     }
   },
   "auth": {
@@ -73,7 +157,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profile information.  Authorization is based on matching request.auth.uid to the userId.",
+          "description": "Stores user profile information. Authorization is based on matching request.auth.uid to the userId.",
           "params": [
             {
               "name": "userId",
@@ -117,8 +201,28 @@
             }
           ]
         }
+      },
+       {
+        "path": "/users/{userId}/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores Shopify orders for a given user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user to which the order belongs."
+            },
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the order."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "This Firestore structure prioritizes security and scalability by adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling. User data and profit statistics are stored in separate collections to ensure clear ownership and access control. The structure leverages path-based ownership for user-related data, making security rules straightforward. Specifically, the `/users/{userId}` collection stores user profiles. The `/users/{userId}/profitStats/{profitStatId}` subcollection stores profit statistics associated with each user, maintaining a clear 1:N relationship and making ownership explicit through the path. This design eliminates the need for `get()` calls in security rules because authorization is based solely on the `request.auth.uid` matching the `userId` in the path, ensuring Authorization Independence. It facilitates secure list operations (QAPs) as rules can easily filter based on path-based ownership without scanning unrelated data. The structure allows to create atomic operations using transactions and batches."
+    "reasoning": "This Firestore structure prioritizes security and scalability by adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling. User data, profit statistics and orders are stored in separate collections to ensure clear ownership and access control. The structure leverages path-based ownership for user-related data, making security rules straightforward. Specifically, the `/users/{userId}` collection stores user profiles. The `/users/{userId}/profitStats/{profitStatId}` and `/users/{userId}/orders/{orderId}` subcollections stores profit statistics and orders associated with each user, maintaining a clear 1:N relationship and making ownership explicit through the path. This design eliminates the need for `get()` calls in security rules because authorization is based solely on the `request.auth.uid` matching the `userId` in the path, ensuring Authorization Independence. It facilitates secure list operations (QAPs) as rules can easily filter based on path-based ownership without scanning unrelated data. The structure allows to create atomic operations using transactions and batches."
   }
 }

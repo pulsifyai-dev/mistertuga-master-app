@@ -1,6 +1,6 @@
 /**
  * This ruleset enforces a strict user-ownership security model. All user-specific
- * data, such as profiles and profit statistics, is isolated within a user's
+ * data, such as profiles, profit statistics and orders are isolated within a user's
  * own document tree, ensuring that users can only access their own information.
  *
  * Core Philosophy:
@@ -14,6 +14,7 @@
  *   has one document, keyed by their UID.
  * - /users/{userId}/profitStats/{profitStatId}: A private subcollection containing
  *   sensitive profit statistics for that user.
+ * - /users/{userId}/orders/{orderId}: A private subcollection containing orders for that user.
  * - /roles_admin/{userId}: A lookup collection to identify users with administrative
  *   privileges. Client-side modifications to this collection are disabled to
  *   prevent privilege escalation.
@@ -99,6 +100,21 @@ service cloud.firestore {
       return isExistingOwner(userId) && isUserIdImmutable;
     }
 
+    /**
+     * Validates a new Order document on creation.
+     * Ensures the creator is the owner of the parent user document.
+     */
+    function isValidOrderCreate(userId) {
+      return isOwner(userId);
+    }
+    
+    /**
+     * Validates an Order document on update.
+     * Ensures the owner is making the change.
+     */
+    function isValidOrderUpdate(userId) {
+      return isExistingOwner(userId);
+    }
 
     // ------------------------------------------------------------------------
     // Collection Rules
@@ -130,6 +146,21 @@ service cloud.firestore {
         allow list: if isOwner(userId);
         allow create: if isValidProfitStatCreate(userId);
         allow update: if isValidProfitStatUpdate(userId);
+        allow delete: if isExistingOwner(userId);
+      }
+      
+      /**
+       * @description Controls access to a user's Shopify orders.
+       * @path /users/{userId}/orders/{orderId}
+       * @allow (list) An authenticated user listing their own orders.
+       * @deny (create) An authenticated user trying to create an order under another user's account.
+       * @principle Enforces document ownership for a user's private subcollections.
+       */
+      match /orders/{orderId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isValidOrderCreate(userId);
+        allow update: if isValidOrderUpdate(userId);
         allow delete: if isExistingOwner(userId);
       }
     }

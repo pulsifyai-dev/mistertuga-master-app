@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import DashboardSidebar from '@/components/dashboard/sidebar';
 import DashboardHeader from '@/components/dashboard/header';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -27,16 +28,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <DashboardSidebar />
-      </Sidebar>
-      <SidebarInset>
-        <DashboardHeader />
-        <main className="flex-1 p-4 md:p-6 lg:p-8">
-            {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <FirebaseClientProvider>
+      <SidebarProvider>
+        <Sidebar collapsible="icon">
+          <DashboardSidebar />
+        </Sidebar>
+        <SidebarInset>
+          <DashboardHeader />
+          <main className="flex-1 p-4 md:p-6 lg:p-8">
+              {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </FirebaseClientProvider>
   );
 }
