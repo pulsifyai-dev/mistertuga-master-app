@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useFirebase } from '@/firebase';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Loader2 } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 type Product = {
   name: string;
@@ -82,7 +84,7 @@ export default function MasterShopifyOrdersPage() {
     setTrackingNumbers(prev => ({ ...prev, [orderId]: value }));
   };
 
-  const handleSubmitTrackingNumber = async (orderId: string) => {
+  const handleSubmitTrackingNumber = (orderId: string) => {
     if (!user) return;
     const trackingNumber = trackingNumbers[orderId];
     if (!trackingNumber) {
@@ -91,21 +93,30 @@ export default function MasterShopifyOrdersPage() {
     }
 
     const orderRef = doc(firestore, 'users', user.uid, 'orders', orderId);
-    try {
-      await updateDoc(orderRef, {
-        trackingNumber: trackingNumber,
-        status: 'Shipped'
+    const updatedData = {
+      trackingNumber: trackingNumber,
+      status: 'Shipped' as const,
+    };
+
+    updateDoc(orderRef, updatedData)
+      .then(() => {
+        console.log(`Successfully updated tracking number for order ${orderId}`);
+        setTrackingNumbers(prev => {
+          const newTrackingNumbers = { ...prev };
+          delete newTrackingNumbers[orderId];
+          return newTrackingNumbers;
+        });
+      })
+      .catch((error) => {
+        const contextualError = new FirestorePermissionError({
+          path: orderRef.path,
+          operation: 'update',
+          requestResourceData: updatedData,
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        console.error(`Error updating tracking number for order ${orderId}:`, error);
+        alert("Failed to update tracking number. Check console for details.");
       });
-      console.log(`Successfully updated tracking number for order ${orderId} for user ${user.uid}`);
-      setTrackingNumbers(prev => {
-        const newTrackingNumbers = { ...prev };
-        delete newTrackingNumbers[orderId];
-        return newTrackingNumbers;
-      });
-    } catch (error) => {
-      console.error(`Error updating tracking number for order ${orderId}:`, error);
-      alert("Failed to update tracking number. Please try again.");
-    }
   };
 
   if (pageLoading || isUserLoading) {
@@ -251,3 +262,5 @@ export default function MasterShopifyOrdersPage() {
     </div>
   );
 }
+
+    
