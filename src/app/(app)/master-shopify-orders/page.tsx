@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Loader2 } from 'lucide-react';
 
 type Product = {
   name: string;
@@ -38,85 +40,88 @@ const FlagPT = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="
 const FlagDE = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 20 15"><path fill="#000" d="M0 0h20v5H0z"/><path fill="#D00" d="M0 5h20v5H0z"/><path fill="#FFCE00" d="M0 10h20v5H0z"/></svg>;
 const FlagES = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 20 15"><path fill="#C60B1E" d="M0 0h20v3.75H0zM0 11.25h20V15H0z"/><path fill="#FFC400" d="M0 3.75h20v7.5H0z"/></svg>;
 
-const initialOrders: Order[] = [
-  {
-    id: 'DE#1014',
-    country: 'Germany',
-    countryCode: 'DE',
-    date: '2024-05-20',
-    status: 'Pending Production',
-    customer: {
-      name: 'Klaus Mueller',
-      address: 'Berliner Str. 123, 10115 Berlin',
-      phone: '+49 123 4567890',
+const mockUserOrders = {
+  userId: "DUMMY_USER_ID_12345",
+  orders: [
+    {
+      id: 'DE#1014',
+      country: 'Germany',
+      countryCode: 'DE',
+      date: '2024-05-20',
+      status: 'Pending Production',
+      customer: {
+        name: 'Klaus Mueller',
+        address: 'Berliner Str. 123, 10115 Berlin',
+        phone: '+49 123 4567890',
+      },
+      trackingNumber: '',
+      items: [
+        {
+          name: 'Custom T-Shirt',
+          productId: 'TS-001',
+          customization: 'Logo "Alpha"',
+          size: 'L',
+          quantity: 1,
+          thumbnailUrl: 'https://picsum.photos/seed/a1/100/100',
+        },
+      ],
     },
-    trackingNumber: '',
-    items: [
-      {
-        name: 'Custom T-Shirt',
-        productId: 'TS-001',
-        customization: 'Logo "Alpha"',
-        size: 'L',
-        quantity: 1,
-        thumbnailUrl: 'https://picsum.photos/seed/a1/100/100',
+    {
+      id: 'PT#2045',
+      country: 'Portugal',
+      countryCode: 'PT',
+      date: '2024-05-18',
+      status: 'Shipped',
+      customer: {
+        name: 'Ana Silva',
+        address: 'Rua da Prata 55, 1100-420 Lisboa',
+        phone: '+351 912 345 678',
       },
-    ],
-  },
-  {
-    id: 'PT#2045',
-    country: 'Portugal',
-    countryCode: 'PT',
-    date: '2024-05-18',
-    status: 'Shipped',
-    customer: {
-      name: 'Ana Silva',
-      address: 'Rua da Prata 55, 1100-420 Lisboa',
-      phone: '+351 912 345 678',
+      trackingNumber: 'LP123456789PT',
+      items: [
+        {
+          name: 'Personalized Mug',
+          productId: 'MG-002',
+          customization: 'Photo "Family"',
+          size: '11oz',
+          quantity: 2,
+          thumbnailUrl: 'https://picsum.photos/seed/b1/100/100',
+        },
+      ],
     },
-    trackingNumber: 'LP123456789PT',
-    items: [
-      {
-        name: 'Personalized Mug',
-        productId: 'MG-002',
-        customization: 'Photo "Family"',
-        size: '11oz',
-        quantity: 2,
-        thumbnailUrl: 'https://picsum.photos/seed/b1/100/100',
+    {
+      id: 'ES#3001',
+      country: 'Spain',
+      countryCode: 'ES',
+      date: '2024-05-21',
+      status: 'Pending Production',
+      customer: {
+        name: 'Carlos Ruiz',
+        address: 'Calle Mayor 10, 28013 Madrid',
+        phone: '+34 612 345 678',
       },
-    ],
-  },
-  {
-    id: 'ES#3001',
-    country: 'Spain',
-    countryCode: 'ES',
-    date: '2024-05-21',
-    status: 'Pending Production',
-    customer: {
-      name: 'Carlos Ruiz',
-      address: 'Calle Mayor 10, 28013 Madrid',
-      phone: '+34 612 345 678',
+      trackingNumber: '',
+      items: [
+        {
+          name: 'Engraved Pen',
+          productId: 'PN-005',
+          customization: '"C.R."',
+          size: 'N/A',
+          quantity: 1,
+          thumbnailUrl: 'https://picsum.photos/seed/c1/100/100',
+        },
+        {
+          name: 'Custom Notebook',
+          productId: 'NB-003',
+          customization: 'Cover Art "Mountains"',
+          size: 'A5',
+          quantity: 1,
+          thumbnailUrl: 'https://picsum.photos/seed/d1/100/100',
+        },
+      ],
     },
-    trackingNumber: '',
-    items: [
-      {
-        name: 'Engraved Pen',
-        productId: 'PN-005',
-        customization: '"C.R."',
-        size: 'N/A',
-        quantity: 1,
-        thumbnailUrl: 'https://picsum.photos/seed/c1/100/100',
-      },
-      {
-        name: 'Custom Notebook',
-        productId: 'NB-003',
-        customization: 'Cover Art "Mountains"',
-        size: 'A5',
-        quantity: 1,
-        thumbnailUrl: 'https://picsum.photos/seed/d1/100/100',
-      },
-    ],
-  },
-];
+  ]
+};
 
 const countryFlags: { [key: string]: React.ReactNode } = {
   PT: <FlagPT />,
@@ -126,8 +131,57 @@ const countryFlags: { [key: string]: React.ReactNode } = {
 
 
 export default function MasterShopifyOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const { user, loading: authLoading } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const [trackingNumbers, setTrackingNumbers] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      // Simulate fetching data for the logged-in user
+      // In a real scenario, this would be a Firestore query
+      // e.g., firestore.collection('users').doc(user.uid).collection('orders').get()
+      setOrders(mockUserOrders.orders);
+      setPageLoading(false);
+    } else if (!authLoading && !user) {
+      // Handle case where there is no user
+      setPageLoading(false);
+    }
+  }, [user, authLoading]);
+
+  const handleTrackingNumberChange = (orderId: string, value: string) => {
+    setTrackingNumbers(prev => ({ ...prev, [orderId]: value }));
+  };
+
+  const handleSubmitTrackingNumber = (orderId: string) => {
+    const trackingNumber = trackingNumbers[orderId];
+    if (!trackingNumber) {
+      alert("Please enter a tracking number.");
+      return;
+    }
+    console.log(`Submitting tracking number ${trackingNumber} for order ${orderId} for user ${user?.uid}`);
+    // Here you would typically update Firestore
+    // For now, we'll just log it and maybe update the local state to move the order
+    // For a better UX, you'd show a loading state on the button and then refetch/update data
+  };
+
+  if (pageLoading || authLoading) {
+    return (
+      <div className="flex h-[400px] w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center">
+        <h1 className="font-headline text-2xl font-bold">Access Denied</h1>
+        <p className="text-muted-foreground">Please log in to view your orders.</p>
+      </div>
+    )
+  }
 
   const filteredOrders = activeFilter === 'ALL'
     ? orders
@@ -187,8 +241,13 @@ export default function MasterShopifyOrdersPage() {
                       <p className="text-muted-foreground">{order.customer.phone}</p>
                     </div>
                     <div className="flex flex-col gap-2">
-                       <Input type="text" placeholder="Número de rastreio" />
-                       <Button>Submit</Button>
+                       <Input
+                          type="text"
+                          placeholder="Número de rastreio"
+                          value={trackingNumbers[order.id] || ''}
+                          onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
+                        />
+                       <Button onClick={() => handleSubmitTrackingNumber(order.id)}>Submit</Button>
                     </div>
                   </div>
                 </CardContent>
