@@ -50,7 +50,9 @@ export default function LoginPage() {
   const handleLogin = async (data: LoginSchema) => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      // Force refresh of the token to get custom claims
+      await userCredential.user.getIdToken(true);
       router.push('/dashboard');
     } catch (error: any) {
       toast({
@@ -72,16 +74,27 @@ export default function LoginPage() {
         title: 'Sign Up Failed',
         description: result.error,
       });
+      setLoading(false);
     } else {
       toast({
         title: 'Sign Up Successful',
         description: 'Please log in with your new account.',
       });
-      // This will automatically log the user in via onAuthStateChanged
-      await signInWithEmailAndPassword(auth, data.email, data.password);
-      router.push('/dashboard');
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+        // Force refresh of the token to get custom claims, especially for the new ADMIN
+        await userCredential.user.getIdToken(true);
+        router.push('/dashboard');
+      } catch(e: any) {
+         toast({
+          variant: 'destructive',
+          title: 'Login Failed after Sign Up',
+          description: e.message || 'An unexpected error occurred.',
+        });
+      } finally {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   return (

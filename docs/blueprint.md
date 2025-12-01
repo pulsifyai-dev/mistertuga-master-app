@@ -3,7 +3,7 @@
 ## Core Features:
 
 - Firebase Authentication: Implement user authentication with Firebase, including 'Login' and 'Sign Up' tabs with a server action for sign-up, integrated with Firebase Admin SDK for role-based claims.
-- Role-Based Access Control: Implement role-based access control (ADMIN/FORNECEDOR) using Firebase Admin SDK and custom claims based on the ADMIN_CODE during registration, saving user role and email to a Firestore 'users' collection.
+- Role-Based Access Control: Implement role-based access control (ADMIN/USER) using Firebase Admin SDK and custom claims based on the ADMIN_CODE during registration, saving user role and email to a Firestore 'users' collection.
 - Dashboard UI with Permanent Sidebar: Create a dashboard with a permanent sidebar using shadcn/ui components, displaying relevant navigation links.
 - Conditional Sidebar Link: Implement conditional rendering of the 'Profit Stats' link in the sidebar, visible only to users with the 'ADMIN' role.
 - Data Visualization: Ability to visualize data sets using graphs and charts

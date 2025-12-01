@@ -11,7 +11,7 @@ const signUpSchema = z.object({
 
 type SignUpSchema = z.infer<typeof signUpSchema>;
 
-export async function signUp(data: SignUpSchema): Promise<{ error?: string }> {
+export async function signUp(data: SignUpSchema): Promise<{ error?: string, role?: string }> {
   const validation = signUpSchema.safeParse(data);
   if (!validation.success) {
     return { error: 'Invalid data provided.' };
@@ -20,9 +20,12 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string }> {
   const { email, password, adminCode } = validation.data;
   const adminRegistrationCode = process.env.ADMIN_REGISTRATION_CODE;
 
-  let role = 'FORNECEDOR';
+  let role = 'USER';
   if (adminRegistrationCode && adminCode === adminRegistrationCode) {
     role = 'ADMIN';
+  } else if (adminCode && adminCode !== adminRegistrationCode) {
+    // Optionally handle incorrect admin code case
+    // For now, we just proceed as a regular user
   }
 
   try {
@@ -55,7 +58,7 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string }> {
       createdAt: new Date().toISOString(),
     });
 
-    return {};
+    return { role };
   } catch (error: any) {
     console.error('Error during sign up:', error);
     return { error: error.message || 'An unexpected error occurred during sign up.' };
