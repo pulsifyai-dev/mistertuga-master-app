@@ -24,11 +24,13 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
 
   if (adminCode) {
     if (!adminRegistrationCode) {
+        // Se o código de admin não está configurado no servidor, ninguém pode se registrar como admin.
         return { error: "Server configuration error: Admin registration is not enabled." };
     }
     if (adminCode === adminRegistrationCode) {
         role = 'ADMIN';
     } else {
+        // Se um código foi inserido mas está incorreto.
         return { error: 'Invalid Admin Code.' };
     }
   }
