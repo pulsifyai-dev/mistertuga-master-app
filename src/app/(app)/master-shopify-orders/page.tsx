@@ -7,10 +7,15 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Database } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Loader2, Database, Pencil } from 'lucide-react';
 import { collection, query, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 type Product = {
   name: string;
@@ -37,6 +42,14 @@ type Order = {
   trackingNumber: string;
   items: Product[];
 };
+
+const editOrderSchema = z.object({
+  customerName: z.string().min(1, 'Name is required'),
+  customerAddress: z.string().min(1, 'Address is required'),
+  customerPhone: z.string().min(1, 'Phone is required'),
+  trackingNumber: z.string().optional(),
+});
+type EditOrderSchema = z.infer<typeof editOrderSchema>;
 
 // SVG Flag Components
 const FlagPT = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 20 15"><path fill="#006233" d="M0 0h8v15H0z"/><path fill="#D21034" d="M8 0h12v15H8z"/><circle cx="8" cy="7.5" r="2.5" fill="#FFE000"/><path fill="none" stroke="#D21034" stroke-width="0.5" d="M8 5a2.5 2.5 0 000 5m-1.5-3.5h3"/></svg>;
@@ -93,6 +106,23 @@ export default function MasterShopifyOrdersPage() {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [trackingNumbers, setTrackingNumbers] = useState<{ [key: string]: string }>({});
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+
+  const form = useForm<EditOrderSchema>({
+    resolver: zodResolver(editOrderSchema),
+  });
+
+  useEffect(() => {
+    if (editingOrder) {
+      form.reset({
+        customerName: editingOrder.customer.name,
+        customerAddress: editingOrder.customer.address,
+        customerPhone: editingOrder.customer.phone,
+        trackingNumber: editingOrder.trackingNumber || '',
+      });
+    }
+  }, [editingOrder, form]);
 
   useEffect(() => {
     if (isUserLoading) return;
@@ -146,6 +176,48 @@ export default function MasterShopifyOrdersPage() {
     } finally {
         setIsSeeding(false);
     }
+  };
+
+  const handleOpenEditModal = (order: Order) => {
+    setEditingOrder(order);
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateOrder = async (data: EditOrderSchema) => {
+    if (!user || !editingOrder) return;
+    
+    const orderRef = doc(firestore, 'users', user.uid, 'orders', editingOrder.id);
+    const updatedData: Partial<Order> = {
+      customer: {
+        name: data.customerName,
+        address: data.customerAddress,
+        phone: data.customerPhone,
+      },
+    };
+
+    if(data.trackingNumber) {
+        updatedData.trackingNumber = data.trackingNumber;
+        if(editingOrder.status === 'Pending Production') {
+            updatedData.status = 'Shipped';
+        }
+    }
+
+    updateDoc(orderRef, updatedData)
+      .then(() => {
+        console.log(`Successfully updated order ${editingOrder.id}`);
+        setIsEditModalOpen(false);
+        setEditingOrder(null);
+      })
+      .catch((error) => {
+        const contextualError = new FirestorePermissionError({
+          path: orderRef.path,
+          operation: 'update',
+          requestResourceData: updatedData,
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        console.error(`Error updating order ${editingOrder.id}:`, error);
+        alert("Failed to update order. Check console for details.");
+      });
   };
 
   const handleSubmitTrackingNumber = (orderId: string) => {
@@ -208,6 +280,79 @@ export default function MasterShopifyOrdersPage() {
   const shippedOrders = filteredOrders.filter(order => order.status === 'Shipped');
 
   return (
+    <>
+    <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Order {editingOrder?.id}</DialogTitle>
+            <DialogDescription>
+              Update customer details and tracking information. Click save when you're done.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleUpdateOrder)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="customerName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="customerAddress"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Address</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="customerPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Phone</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="trackingNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tracking Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder={editingOrder?.status === 'Shipped' ? 'Cannot change shipped tracking number' : 'Enter tracking number'} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="secondary">Cancel</Button>
+                  </DialogClose>
+                  <Button type="submit">Save Changes</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="font-headline text-3xl font-bold tracking-tight">Pedidos Shopify</h1>
@@ -247,7 +392,12 @@ export default function MasterShopifyOrdersPage() {
                       {countryFlags[order.countryCode]}
                       <span>{order.id}</span>
                     </div>
-                    <div className="text-sm text-muted-foreground">{order.date}</div>
+                     <div className="flex items-center gap-4">
+                        <div className="text-sm text-muted-foreground">{order.date}</div>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenEditModal(order)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                     </div>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
                     <div className="md:col-span-2 flex flex-col gap-4">
@@ -302,7 +452,12 @@ export default function MasterShopifyOrdersPage() {
                       {countryFlags[order.countryCode]}
                       <span>{order.id}</span>
                     </div>
-                    <div className="text-sm text-muted-foreground">{order.date}</div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-muted-foreground">{order.date}</div>
+                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenEditModal(order)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
                      <div className="md:col-span-2 flex flex-col gap-4">
@@ -334,5 +489,6 @@ export default function MasterShopifyOrdersPage() {
       )}
 
     </div>
+    </>
   );
 }
