@@ -21,11 +21,9 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
   const adminRegistrationCode = process.env.ADMIN_REGISTRATION_CODE;
 
   let role = 'USER';
+  // Only assign ADMIN role if the code is provided and correct
   if (adminRegistrationCode && adminCode === adminRegistrationCode) {
     role = 'ADMIN';
-  } else if (adminCode && adminCode !== adminRegistrationCode) {
-    // Optionally handle incorrect admin code case
-    // For now, we just proceed as a regular user
   }
 
   try {
@@ -61,6 +59,7 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
     return { role };
   } catch (error: any) {
     console.error('Error during sign up:', error);
-    return { error: error.message || 'An unexpected error occurred during sign up.' };
+    // Provide a more generic error to the user for security
+    return { error: 'Server configuration error. Please try again later.' };
   }
 }
