@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { Loader2, Database, Pencil } from 'lucide-react';
+import { Loader2, Database, Pencil, RotateCcw } from 'lucide-react';
 import { collectionGroup, query, onSnapshot, doc, updateDoc, writeBatch, Timestamp, getDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -315,6 +315,37 @@ export default function MasterShopifyOrdersPage() {
     }
   };
 
+  const handleResetTrackingNumber = async (order: Order) => {
+    if (!user || !firestore) return;
+  
+    const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
+    const updatedData = {
+      trackingNumber: "",
+      status: "Pending Production" as const,
+    };
+  
+    try {
+      await updateDoc(orderRef, updatedData);
+      toast({
+        title: "Tracking Reset",
+        description: `Order ${order.id} has been moved back to Pending Production.`,
+      });
+    } catch (error) {
+      const contextualError = new FirestorePermissionError({
+        path: orderRef.path,
+        operation: 'update',
+        requestResourceData: updatedData,
+      });
+      errorEmitter.emit('permission-error', contextualError);
+      console.error(`Error resetting tracking for order ${order.id}:`, error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to reset tracking number. Check console for details.",
+      });
+    }
+  };
+
   if (pageLoading || isUserLoading) {
     return (
       <div className="flex h-[400px] w-full items-center justify-center">
@@ -542,7 +573,13 @@ export default function MasterShopifyOrdersPage() {
                         <p>{order.customer.name}</p>
                         <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
                         <p className="text-muted-foreground">{order.customer.phone}</p>
-                        <p className="font-semibold mt-2">Tracking: <span className="font-normal text-primary">{order.trackingNumber}</span></p>
+                        <div className="flex items-center justify-between mt-2">
+                            <p className="font-semibold">Tracking: <span className="font-normal text-primary">{order.trackingNumber}</span></p>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => handleResetTrackingNumber(order)}>
+                                <RotateCcw className="h-4 w-4" />
+                                <span className="sr-only">Reset Tracking</span>
+                            </Button>
+                        </div>
                       </div>
                   </CardContent>
                 </Card>
