@@ -83,5 +83,15 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list, write: if false;
     }
+
+    /**
+     * @description Controls access to application-wide settings.
+     * @path /settings/{settingId}
+     * @allow (read, write) Any authenticated user can manage settings.
+     * @principle Allows configuration by any logged-in user.
+     */
+    match /settings/{settingId} {
+        allow read, write: if isSignedIn();
+    }
   }
 }

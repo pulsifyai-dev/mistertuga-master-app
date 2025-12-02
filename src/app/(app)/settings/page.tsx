@@ -1,55 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useFirebase } from '@/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlusCircle, Trash2 } from 'lucide-react';
-
-type Webhook = {
-  id: number;
-  url: string;
-  country: string;
-};
-
-const europeanCountries = [
-    { code: "PT", name: "Portugal" },
-    { code: "DE", name: "Germany" },
-    { code: "ES", name: "Spain" },
-    { code: "FR", name: "France" },
-    { code: "IT", name: "Italy" },
-    { code: "NL", name: "Netherlands" },
-    { code: "BE", name: "Belgium" },
-    { code: "AT", name: "Austria" },
-    { code: "CH", name: "Switzerland" },
-];
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [webhooks, setWebhooks] = useState<Webhook[]>([
-    { id: new Date().getTime(), url: '', country: '' }
-  ]);
+  const { firestore } = useFirebase();
+  const { toast } = useToast();
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const addWebhook = () => {
-    setWebhooks([...webhooks, { id: new Date().getTime(), url: '', country: '' }]);
-  };
+  useEffect(() => {
+    if (!firestore) return;
 
-  const handleWebhookChange = (id: number, field: 'url' | 'country', value: string) => {
-    setWebhooks(webhooks.map(hook => (hook.id === id ? { ...hook, [field]: value } : hook)));
-  };
+    const fetchWebhookUrl = async () => {
+      setLoading(true);
+      const settingsRef = doc(firestore, "settings", "tracking");
+      const docSnap = await getDoc(settingsRef);
+      if (docSnap.exists()) {
+        setWebhookUrl(docSnap.data().url || '');
+      }
+      setLoading(false);
+    };
 
-  const removeWebhook = (id: number) => {
-    if (webhooks.length > 1) {
-        setWebhooks(webhooks.filter(hook => hook.id !== id));
+    fetchWebhookUrl();
+  }, [firestore]);
+
+  const handleSaveWebhook = async () => {
+    if (!firestore) return;
+    setSaving(true);
+    try {
+      const settingsRef = doc(firestore, "settings", "tracking");
+      await setDoc(settingsRef, { url: webhookUrl });
+      toast({
+        title: "Success",
+        description: "Webhook URL saved successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to save webhook URL: ${error.message}`,
+      });
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const handleSaveWebhooks = () => {
-    console.log("Saving Webhooks:", webhooks);
-    // Logic to save to Firestore will be added here
   };
   
   return (
@@ -90,43 +94,33 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Webhooks</CardTitle>
-            <CardDescription>Manage your webhook URLs for notifications.</CardDescription>
+            <CardTitle>Tracking Webhook</CardTitle>
+            <CardDescription>
+              Enter the URL to receive tracking number updates. A POST request will be sent with order details.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {webhooks.map((webhook) => (
-              <div key={webhook.id} className="flex items-center gap-2">
+          <CardContent>
+            {loading ? (
+                <div className="flex justify-center items-center h-10">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="webhook-url">Webhook URL</Label>
                 <Input
+                  id="webhook-url"
                   placeholder="https://example.com/webhook"
-                  value={webhook.url}
-                  onChange={(e) => handleWebhookChange(webhook.id, 'url', e.target.value)}
-                  className="flex-grow"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
                 />
-                <Select
-                  value={webhook.country}
-                  onValueChange={(value) => handleWebhookChange(webhook.id, 'country', value)}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select Country" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {europeanCountries.map(country => (
-                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="icon" onClick={() => removeWebhook(webhook.id)} disabled={webhooks.length <= 1}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
               </div>
-            ))}
-            <Button variant="outline" size="sm" onClick={addWebhook}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Another Webhook
-            </Button>
+            )}
           </CardContent>
           <CardFooter>
-            <Button onClick={handleSaveWebhooks}>Save Webhooks</Button>
+            <Button onClick={handleSaveWebhook} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Webhook
+            </Button>
           </CardFooter>
         </Card>
       </div>
