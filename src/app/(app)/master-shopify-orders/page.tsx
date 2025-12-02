@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Loader2, Database, Pencil, RotateCcw } from 'lucide-react';
-import { collectionGroup, query, onSnapshot, doc, updateDoc, writeBatch, Timestamp, getDoc } from 'firebase/firestore';
+import { collectionGroup, query, onSnapshot, doc, updateDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useForm } from 'react-hook-form';
@@ -70,49 +70,12 @@ const countryFlags: { [key: string]: React.ReactNode } = {
   ES: <FlagES />,
 };
 
-const mockOrdersForSeeding = [
-    {
-      country: "Portugal",
-      countryCode: "PT",
-      date: new Date("2024-05-20"),
-      status: "Pending Production",
-      customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351912345678" },
-      trackingNumber: "",
-      items: [
-        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://cdn.shopify.com/s/files/1/0925/7972/5693/files/FullSizeRender_bf3a04cc-2b0e-4c0f-8e01-057d4926999b.jpg?v=1764020613", version: "1.0" },
-      ],
-    },
-    {
-      country: "Germany",
-      countryCode: "DE",
-      date: new Date("2024-05-19"),
-      status: "Pending Production",
-      customer: { name: "Hans Müller", address: "Musterstraße 1, Berlin", phone: "+4917612345678" },
-      trackingNumber: "",
-      items: [
-        { name: "T-Shirt 'Eu Amo Berlim'", productId: "PROD-002", customization: "N/A", size: "L", quantity: 2, thumbnailUrl: "https://picsum.photos/seed/shirt/80/80", version: "1.2" },
-      ],
-    },
-    {
-      country: "Spain",
-      countryCode: "ES",
-      date: new Date("2024-05-18"),
-      status: "Shipped",
-      customer: { name: "Maria García", address: "Calle Mayor 5, Madrid", phone: "+34600123456" },
-      trackingNumber: "ES123456789",
-      items: [
-        { name: "Almofada com Nome", productId: "PROD-003", customization: "'Sofia'", size: "40x40cm", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/pillow/80/80", version: "2.0" },
-      ],
-    },
-];
-
 export default function MasterShopifyOrdersPage() {
   const { firestore, user, isUserLoading } = useFirebase();
   const [orders, setOrders] = useState<Order[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [trackingNumbers, setTrackingNumbers] = useState<{ [key: string]: string }>({});
-  const [isSeeding, setIsSeeding] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const { toast } = useToast();
@@ -168,39 +131,6 @@ export default function MasterShopifyOrdersPage() {
 
   const handleTrackingNumberChange = (orderId: string, value: string) => {
     setTrackingNumbers(prev => ({ ...prev, [orderId]: value }));
-  };
-  
-  const seedDatabase = async () => {
-    if (!user || !firestore) {
-        alert("You must be logged in to seed the database.");
-        return;
-    }
-    setIsSeeding(true);
-    try {
-        const batch = writeBatch(firestore);
-        
-        mockOrdersForSeeding.forEach((orderData, index) => {
-            const countryCode = orderData.countryCode;
-            const newId = `${countryCode}#101${index + 4}`;
-            // Correct path: /orders/{countryCode}/orders/{orderId}
-            const docRef = doc(firestore, 'orders', countryCode, 'orders', newId);
-            batch.set(docRef, {
-                ...orderData,
-                customer: {
-                    ...orderData.customer,
-                    phone: orderData.customer.phone.replace(/\s/g, ''),
-                }
-            });
-        });
-
-        await batch.commit();
-        console.log("Database seeded successfully!");
-    } catch (error) {
-        console.error("Error seeding database: ", error);
-        alert("Failed to seed database. Check console for details.");
-    } finally {
-        setIsSeeding(false);
-    }
   };
 
   const handleOpenEditModal = (order: Order) => {
@@ -462,12 +392,8 @@ export default function MasterShopifyOrdersPage() {
               <Database className="w-12 h-12 text-muted-foreground" />
               <div className="flex flex-col gap-1">
                   <h3 className="font-headline text-lg font-semibold">O seu banco de dados está vazio</h3>
-                  <p className="text-sm text-muted-foreground">Clique no botão abaixo para preencher com dados de exemplo.</p>
+                  <p className="text-sm text-muted-foreground">Não há pedidos para exibir.</p>
               </div>
-              <Button onClick={seedDatabase} disabled={isSeeding}>
-                  {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
-                  {isSeeding ? 'Aguarde...' : 'Adicionar Dados de Exemplo'}
-              </Button>
           </Card>
       )}
 
