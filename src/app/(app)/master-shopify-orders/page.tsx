@@ -148,7 +148,7 @@ export default function MasterShopifyOrdersPage() {
             if (data.date instanceof Timestamp) {
                 dateString = data.date.toDate().toISOString().split('T')[0];
             } else if (typeof data.date === 'string') {
-                dateString = data.date;
+                dateString = data.date.split('T')[0];
             }
         }
         return { ...data, id: doc.id, date: dateString, items: data.items || [] } as Order;
@@ -439,21 +439,22 @@ export default function MasterShopifyOrdersPage() {
                         </div>
                       ))}
                     </div>
-                    <div className="flex flex-col justify-between gap-4">
-                       <div className="bg-muted/50 p-3 rounded-lg text-sm">
+                    <div className="flex flex-col gap-4">
+                       <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-2">
                         <h3 className="font-semibold mb-2">Customer Details</h3>
                         <p>{order.customer.name}</p>
                         <p className="text-muted-foreground">{order.customer.address}</p>
                         <p className="text-muted-foreground">{order.customer.phone}</p>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                         <Input
-                            type="text"
-                            placeholder="Número de rastreio"
-                            value={trackingNumbers[order.id] || ''}
-                            onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
-                          />
-                         <Button onClick={() => handleSubmitTrackingNumber(order.id, order.countryCode)}>Submit</Button>
+                        <Separator className="my-2" />
+                        <div className="flex flex-col gap-2">
+                            <Input
+                                type="text"
+                                placeholder="Número de rastreio"
+                                value={trackingNumbers[order.id] || ''}
+                                onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
+                            />
+                            <Button onClick={() => handleSubmitTrackingNumber(order.id, order.countryCode)}>Submit</Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
