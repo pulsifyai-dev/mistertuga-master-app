@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Loader2, Database, Pencil, RotateCcw } from 'lucide-react';
-import { collectionGroup, query, onSnapshot, doc, updateDoc, Timestamp, getDoc } from 'firebase/firestore';
+import { collectionGroup, query, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useForm } from 'react-hook-form';
@@ -181,67 +181,45 @@ export default function MasterShopifyOrdersPage() {
     if (!user || !firestore) return;
     const trackingNumber = trackingNumbers[order.id];
     if (!trackingNumber) {
-      alert("Please enter a tracking number.");
+      toast({
+        variant: "destructive",
+        title: "Missing Tracking Number",
+        description: "Please enter a tracking number.",
+      });
       return;
     }
-
+  
+    const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
+    const updatedData = {
+      trackingNumber: trackingNumber,
+      status: 'Shipped' as const,
+    };
+  
     try {
-      // First, check if webhook URL exists
-      const settingsRef = doc(firestore, "settings", "tracking");
-      const settingsSnap = await getDoc(settingsRef);
-
-      if (!settingsSnap.exists() || !settingsSnap.data()?.url) {
-        toast({
-            variant: "destructive",
-            title: "Webhook Not Configured",
-            description: "Please configure the tracking webhook in settings before submitting a tracking number.",
-        });
-        return; // Stop execution
-      }
-      
-      const webhookUrl = settingsSnap.data().url;
-
-      // If webhook exists, proceed to update the order
-      const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
-      const updatedData = {
-        trackingNumber: trackingNumber,
-        status: 'Shipped' as const,
-      };
-      
       await updateDoc(orderRef, updatedData);
-      console.log(`Successfully updated tracking number for order ${order.id}`);
-
-      // Then, send to webhook
-      const payload = {
-        order_id: order.id,
-        order_name: Array.isArray(order.items) && order.items.length > 0 ? order.items[0].name : "N/A",
-        trackingNumber: trackingNumber,
-      };
-
-      await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      toast({
+        title: "Tracking Submitted",
+        description: `Order ${order.id} updated. The webhook will be triggered automatically.`,
       });
-      console.log(`Webhook sent for order ${order.id}`);
-
       // Clear the input field on success
       setTrackingNumbers(prev => {
         const newTrackingNumbers = { ...prev };
         delete newTrackingNumbers[order.id];
         return newTrackingNumbers;
       });
-
     } catch (error) {
-      const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
       const contextualError = new FirestorePermissionError({
         path: orderRef.path,
         operation: 'update',
-        requestResourceData: { trackingNumber },
+        requestResourceData: updatedData,
       });
       errorEmitter.emit('permission-error', contextualError);
       console.error(`Error updating tracking number for order ${order.id}:`, error);
-      alert("Failed to update tracking number. Check console for details.");
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to submit tracking number. Check console for details.",
+      });
     }
   };
 

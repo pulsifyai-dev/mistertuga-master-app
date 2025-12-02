@@ -29,6 +29,12 @@ export const sendTrackingWebhookOnOrderUpdate = onDocumentUpdated(
     const dataBefore = event.data.before.data();
     const dataAfter = event.data.after.data();
 
+    // Check if data is undefined (can happen on document deletion)
+    if (!dataBefore || !dataAfter) {
+      logger.info("Document data not available, likely a deletion. No webhook sent.");
+      return;
+    }
+    
     const trackingBefore = dataBefore.trackingNumber;
     const trackingAfter = dataAfter.trackingNumber;
 
