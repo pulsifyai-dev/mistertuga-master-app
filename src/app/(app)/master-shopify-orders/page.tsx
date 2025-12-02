@@ -414,7 +414,7 @@ export default function MasterShopifyOrdersPage() {
                   <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
                     <div className="flex items-center gap-2 font-semibold text-card-foreground">
                       {countryFlags[order.countryCode]}
-                      <span>{order.id}</span>
+                      <span>{order.items.length > 0 ? order.items[0].name : order.id}</span>
                     </div>
                      <div className="flex items-center gap-4">
                         <div className="text-sm text-muted-foreground">{order.date}</div>
@@ -475,7 +475,7 @@ export default function MasterShopifyOrdersPage() {
                    <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
                     <div className="flex items-center gap-2 font-semibold text-card-foreground">
                       {countryFlags[order.countryCode]}
-                      <span>{order.id}</span>
+                      <span>{order.items.length > 0 ? order.items[0].name : order.id}</span>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-sm text-muted-foreground">{order.date}</div>
