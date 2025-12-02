@@ -77,7 +77,7 @@ const mockOrdersForSeeding = [
       customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351912345678" },
       trackingNumber: "",
       items: [
-        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/cup/80/80", version: "1.0" },
+        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://cdn.shopify.com/s/files/1/0980/5355/4507/files/MARRETAS_FC_19.jpg?v=1760989759", version: "1.0" },
       ],
     },
     {
@@ -427,7 +427,7 @@ export default function MasterShopifyOrdersPage() {
                     <div className="md:col-span-2 flex flex-col gap-4">
                       {Array.isArray(order.items) && order.items.map((item, index) => (
                         <div key={index} className="flex items-start gap-4">
-                          <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
+                          <Image src={item.thumbnailUrl || `https://placehold.co/80x80/e2e8f0/64748b?text=N/A`} alt={item.name} width={80} height={80} className="rounded-md" />
                           <div className="text-sm">
                             <p className="font-semibold">{item.name}</p>
                             <p className="text-muted-foreground">ID: {item.productId}</p>
@@ -488,7 +488,7 @@ export default function MasterShopifyOrdersPage() {
                      <div className="md:col-span-2 flex flex-col gap-4">
                       {Array.isArray(order.items) && order.items.map((item, index) => (
                         <div key={index} className="flex items-start gap-4">
-                          <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
+                          <Image src={item.thumbnailUrl || `https://placehold.co/80x80/e2e8f0/64748b?text=N/A`} alt={item.name} width={80} height={80} className="rounded-md" />
                           <div className="text-sm">
                             <p className="font-semibold">{item.name}</p>
                             <p className="text-muted-foreground">ID: {item.productId}</p>
