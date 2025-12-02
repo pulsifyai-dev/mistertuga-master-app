@@ -284,7 +284,7 @@ export default function MasterShopifyOrdersPage() {
       // Then, send to webhook
       const payload = {
         order_id: order.id,
-        order_name: order.items.length > 0 ? order.items[0].name : "N/A",
+        order_name: Array.isArray(order.items) && order.items.length > 0 ? order.items[0].name : "N/A",
         trackingNumber: trackingNumber,
       };
 
