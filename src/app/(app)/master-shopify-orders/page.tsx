@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Loader2, Database, Pencil } from 'lucide-react';
-import { collection, query, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collectionGroup, query, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useForm } from 'react-hook-form';
@@ -131,13 +131,13 @@ export default function MasterShopifyOrdersPage() {
       return;
     }
 
-    const ordersCollection = collection(firestore, 'orders');
-    const q = query(ordersCollection);
+    const ordersCollectionGroup = collectionGroup(firestore, 'orders');
+    const q = query(ordersCollectionGroup);
 
     setPageLoading(true);
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const userOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-      setOrders(userOrders);
+      const allOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      setOrders(allOrders);
       setPageLoading(false);
     }, (error) => {
       console.error("Error fetching orders: ", error);
@@ -159,12 +159,12 @@ export default function MasterShopifyOrdersPage() {
     setIsSeeding(true);
     try {
         const batch = writeBatch(firestore);
-        const ordersCollectionRef = collection(firestore, 'orders');
-
+        
         mockOrdersForSeeding.forEach((orderData, index) => {
             const countryCode = orderData.countryCode;
             const newId = `${countryCode}#101${index + 4}`;
-            const docRef = doc(ordersCollectionRef, newId);
+            // Correct path: /orders/{countryCode}/orders/{orderId}
+            const docRef = doc(firestore, 'orders', countryCode, 'orders', newId);
             batch.set(docRef, orderData);
         });
 
@@ -186,7 +186,8 @@ export default function MasterShopifyOrdersPage() {
   const handleUpdateOrder = async (data: EditOrderSchema) => {
     if (!user || !editingOrder || !firestore) return;
     
-    const orderRef = doc(firestore, 'orders', editingOrder.id);
+    // Correct path: /orders/{countryCode}/orders/{orderId}
+    const orderRef = doc(firestore, 'orders', editingOrder.countryCode, 'orders', editingOrder.id);
     const updatedData: Partial<Order> = {
       customer: {
         name: data.customerName,
@@ -220,7 +221,7 @@ export default function MasterShopifyOrdersPage() {
       });
   };
 
-  const handleSubmitTrackingNumber = (orderId: string) => {
+  const handleSubmitTrackingNumber = (orderId: string, countryCode: string) => {
     if (!user || !firestore) return;
     const trackingNumber = trackingNumbers[orderId];
     if (!trackingNumber) {
@@ -228,7 +229,7 @@ export default function MasterShopifyOrdersPage() {
       return;
     }
 
-    const orderRef = doc(firestore, 'orders', orderId);
+    const orderRef = doc(firestore, 'orders', countryCode, 'orders', orderId);
     const updatedData = {
       trackingNumber: trackingNumber,
       status: 'Shipped' as const,
@@ -428,7 +429,7 @@ export default function MasterShopifyOrdersPage() {
                             value={trackingNumbers[order.id] || ''}
                             onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
                           />
-                         <Button onClick={() => handleSubmitTrackingNumber(order.id)}>Submit</Button>
+                         <Button onClick={() => handleSubmitTrackingNumber(order.id, order.countryCode)}>Submit</Button>
                       </div>
                     </div>
                   </CardContent>

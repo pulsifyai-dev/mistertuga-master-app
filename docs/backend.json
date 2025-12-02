@@ -183,14 +183,18 @@
         }
       },
        {
-        "path": "/orders/{orderId}",
+        "path": "/orders/{countryCode}/orders/{orderId}",
         "definition": {
           "entityName": "Order",
           "schema": {
             "$ref": "#/backend/entities/Order"
           },
-          "description": "Stores all Shopify orders in a single, shared collection.",
+          "description": "Stores all Shopify orders, organized into sub-collections by country code.",
           "params": [
+            {
+              "name": "countryCode",
+              "description": "The ISO country code for the order's destination."
+            },
             {
               "name": "orderId",
               "description": "The unique identifier of the order."

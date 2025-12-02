@@ -9,7 +9,7 @@
  * Data Structure:
  * - /users/{userId}: Stores private user profile information. Each user
  *   has one document, keyed by their UID.
- * - /orders/{orderId}: A shared, top-level collection containing all Shopify orders.
+ * - /orders/{countryCode}/orders/{orderId}: A shared, top-level collection containing all Shopify orders.
  * - /roles_admin/{userId}: A lookup collection to identify users with administrative
  *   privileges.
  */
@@ -62,13 +62,13 @@ service cloud.firestore {
     }
     
     /**
-     * @description Controls access to the shared, top-level orders collection.
-     * @path /orders/{orderId}
+     * @description Controls access to the shared, nested orders collections.
+     * @path /orders/{countryCode}/orders/{orderId}
      * @allow (read, write) Any authenticated user can read or write to any order.
      * @principle Enables a collaborative workflow where all users manage a central
-     * list of orders.
+     * list of orders, now organized by country.
      */
-    match /orders/{orderId} {
+    match /orders/{countryCode}/orders/{orderId} {
       allow read, write: if isSignedIn();
     }
 
