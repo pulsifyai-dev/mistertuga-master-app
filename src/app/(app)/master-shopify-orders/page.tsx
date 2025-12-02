@@ -24,6 +24,7 @@ type Product = {
   size: string;
   quantity: number;
   thumbnailUrl: string;
+  version: string;
 };
 
 type Customer = {
@@ -76,7 +77,7 @@ const mockOrdersForSeeding = [
       customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351912345678" },
       trackingNumber: "",
       items: [
-        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/cup/80/80" },
+        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/cup/80/80", version: "1.0" },
       ],
     },
     {
@@ -87,7 +88,7 @@ const mockOrdersForSeeding = [
       customer: { name: "Hans Müller", address: "Musterstraße 1, Berlin", phone: "+4917612345678" },
       trackingNumber: "",
       items: [
-        { name: "T-Shirt 'Eu Amo Berlim'", productId: "PROD-002", customization: "N/A", size: "L", quantity: 2, thumbnailUrl: "https://picsum.photos/seed/shirt/80/80" },
+        { name: "T-Shirt 'Eu Amo Berlim'", productId: "PROD-002", customization: "N/A", size: "L", quantity: 2, thumbnailUrl: "https://picsum.photos/seed/shirt/80/80", version: "1.2" },
       ],
     },
     {
@@ -98,7 +99,7 @@ const mockOrdersForSeeding = [
       customer: { name: "Maria García", address: "Calle Mayor 5, Madrid", phone: "+34600123456" },
       trackingNumber: "ES123456789",
       items: [
-        { name: "Almofada com Nome", productId: "PROD-003", customization: "'Sofia'", size: "40x40cm", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/pillow/80/80" },
+        { name: "Almofada com Nome", productId: "PROD-003", customization: "'Sofia'", size: "40x40cm", quantity: 1, thumbnailUrl: "https://picsum.photos/seed/pillow/80/80", version: "2.0" },
       ],
     },
 ];
@@ -433,6 +434,7 @@ export default function MasterShopifyOrdersPage() {
                             <p className="text-muted-foreground">Customization: {item.customization}</p>
                             <p className="text-muted-foreground">Size: {item.size}</p>
                             <p className="text-muted-foreground">Qty: {item.quantity}</p>
+                            <p className="text-muted-foreground">Version: {item.version}</p>
                           </div>
                         </div>
                       ))}
@@ -493,6 +495,7 @@ export default function MasterShopifyOrdersPage() {
                             <p className="text-muted-foreground">Customization: {item.customization}</p>
                             <p className="text-muted-foreground">Size: {item.size}</p>
                             <p className="text-muted-foreground">Qty: {item.quantity}</p>
+                            <p className="text-muted-foreground">Version: {item.version}</p>
                           </div>
                         </div>
                       ))}

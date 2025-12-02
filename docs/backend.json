@@ -137,9 +137,12 @@
         },
         "thumbnailUrl": {
           "type": "string"
+        },
+        "version": {
+          "type": "string"
         }
       },
-      "required": ["name", "productId", "customization", "size", "quantity", "thumbnailUrl"]
+      "required": ["name", "productId", "customization", "size", "quantity", "thumbnailUrl", "version"]
     }
   },
   "auth": {
