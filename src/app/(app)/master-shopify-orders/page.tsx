@@ -150,7 +150,7 @@ export default function MasterShopifyOrdersPage() {
                 dateString = data.date;
             }
         }
-        return { ...data, id: doc.id, date: dateString } as Order;
+        return { ...data, id: doc.id, date: dateString, items: data.items || [] } as Order;
       });
       setOrders(allOrders);
       setPageLoading(false);
@@ -180,7 +180,13 @@ export default function MasterShopifyOrdersPage() {
             const newId = `${countryCode}#101${index + 4}`;
             // Correct path: /orders/{countryCode}/orders/{orderId}
             const docRef = doc(firestore, 'orders', countryCode, 'orders', newId);
-            batch.set(docRef, orderData);
+            batch.set(docRef, {
+                ...orderData,
+                customer: {
+                    ...orderData.customer,
+                    phone: orderData.customer.phone.replace(/\s/g, ''),
+                }
+            });
         });
 
         await batch.commit();
@@ -418,7 +424,7 @@ export default function MasterShopifyOrdersPage() {
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
                     <div className="md:col-span-2 flex flex-col gap-4">
-                      {order.items.map((item, index) => (
+                      {Array.isArray(order.items) && order.items.map((item, index) => (
                         <div key={index} className="flex items-start gap-4">
                           <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
                           <div className="text-sm">
@@ -478,7 +484,7 @@ export default function MasterShopifyOrdersPage() {
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
                      <div className="md:col-span-2 flex flex-col gap-4">
-                      {order.items.map((item, index) => (
+                      {Array.isArray(order.items) && order.items.map((item, index) => (
                         <div key={index} className="flex items-start gap-4">
                           <Image src={item.thumbnailUrl} alt={item.name} width={80} height={80} className="rounded-md" />
                           <div className="text-sm">
