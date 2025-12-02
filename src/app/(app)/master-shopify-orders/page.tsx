@@ -195,7 +195,7 @@ export default function MasterShopifyOrdersPage() {
 
         await batch.commit();
         console.log("Database seeded successfully!");
-    } catch (error) => {
+    } catch (error) {
         console.error("Error seeding database: ", error);
         alert("Failed to seed database. Check console for details.");
     } finally {
