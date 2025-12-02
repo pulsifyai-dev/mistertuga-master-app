@@ -1,0 +1,75 @@
+diff --git a/node_modules/@radix-ui/react-accordion/package.json b/node_modules/@radix-ui/react-accordion/package.json
+index 5152a55..58c48a7 100644
+--- a/node_modules/@radix-ui/react-accordion/package.json
++++ b/node_modules/@radix-ui/react-accordion/package.json
+@@ -62,7 +62,7 @@
+     "@radix-ui/react-primitive": "1.1.1"
+   },
+   "peerDependencies": {
+-    "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+-    "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
++    "react": "*",
++    "react-dom": "*"
+   },
+   "homepage": "https://radix-ui.com/primitives",
+   "bugs": {
+diff --git a/node_modules/@radix-ui/react-collapsible/package.json b/node_modules/@radix-ui/react-collapsible/package.json
+index 3f95b53..d186c87 100644
+--- a/node_modules/@radix-ui/react-collapsible/package.json
++++ b/node_modules/@radix-ui/react-collapsible/package.json
+@@ -62,8 +62,8 @@
+     "@radix-ui/react-primitive": "1.1.1"
+   },
+   "peerDependencies": {
+-    "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+-    "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
++    "react": "*",
++    "react-dom": "*"
+   },
+   "homepage": "https://radix-ui.com/primitives",
+   "bugs": {
+diff --git a/node_modules/@radix-ui/react-popper/package.json b/node_modules/@radix-ui/react-popper/package.json
+index d7aed97..f5f299c 100644
+--- a/node_modules/@radix-ui/react-popper/package.json
++++ b/node_modules/@radix-ui/react-popper/package.json
+@@ -63,8 +63,8 @@
+     "@radix-ui/react-primitive": "1.1.1"
+   },
+   "peerDependencies": {
+-    "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+-    "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
++    "react": "*",
++    "react-dom": "*"
+   },
+   "homepage": "https://radix-ui.com/primitives",
+   "bugs": {
+diff --git a/node_modules/@radix-ui/react-roving-focus/package.json b/node_modules/@radix-ui/react-roving-focus/package.json
+index 313e970..ba353f5 100644
+--- a/node_modules/@radix-ui/react-roving-focus/package.json
++++ b/node_modules/@radix-ui/react-roving-focus/package.json
+@@ -62,8 +62,8 @@
+     "@radix-ui/react-primitive": "1.1.1"
+   },
+   "peerDependencies": {
+-    "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+-    "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
++    "react": "*",
++    "react-dom": "*"
+   },
+   "homepage": "https://radix-ui.com/primitives",
+   "bugs": {
+diff --git a/node_modules/@radix-ui/react-tabs/package.json b/node_modules/@radix-ui/react-tabs/package.json
+index 9b75276..3f3b9c7 100644
+--- a/node_modules/@radix-ui/react-tabs/package.json
++++ b/node_modules/@radix-ui/react-tabs/package.json
+@@ -62,8 +62,8 @@
+     "@radix-ui/react-primitive": "1.1.1"
+   },
+   "peerDependencies": {
+-    "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+-    "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
++    "react": "*",
++    "react-dom": "*"
+   },
+   "homepage": "https://radix-ui.com/primitives",
+   "bugs": {
