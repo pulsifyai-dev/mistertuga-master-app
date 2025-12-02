@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 
 type Product = {
   name: string;
@@ -114,6 +115,7 @@ export default function MasterShopifyOrdersPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const { toast } = useToast();
 
   const form = useForm<EditOrderSchema>({
     resolver: zodResolver(editOrderSchema),
@@ -193,7 +195,7 @@ export default function MasterShopifyOrdersPage() {
 
         await batch.commit();
         console.log("Database seeded successfully!");
-    } catch (error) {
+    } catch (error) => {
         console.error("Error seeding database: ", error);
         alert("Failed to seed database. Check console for details.");
     } finally {
@@ -253,51 +255,63 @@ export default function MasterShopifyOrdersPage() {
       return;
     }
 
-    const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
-    const updatedData = {
-      trackingNumber: trackingNumber,
-      status: 'Shipped' as const,
-    };
-
     try {
-        await updateDoc(orderRef, updatedData);
-        console.log(`Successfully updated tracking number for order ${order.id}`);
+      // First, check if webhook URL exists
+      const settingsRef = doc(firestore, "settings", "tracking");
+      const settingsSnap = await getDoc(settingsRef);
 
-        // Send to webhook
-        const settingsRef = doc(firestore, "settings", "tracking");
-        const settingsSnap = await getDoc(settingsRef);
-
-        if (settingsSnap.exists() && settingsSnap.data()?.url) {
-            const webhookUrl = settingsSnap.data().url;
-            const payload = {
-                order_id: order.id,
-                order_name: order.items.length > 0 ? order.items[0].name : "N/A",
-                trackingNumber: trackingNumber,
-            };
-
-            await fetch(webhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            console.log(`Webhook sent for order ${order.id}`);
-        }
-
-        setTrackingNumbers(prev => {
-            const newTrackingNumbers = { ...prev };
-            delete newTrackingNumbers[order.id];
-            return newTrackingNumbers;
+      if (!settingsSnap.exists() || !settingsSnap.data()?.url) {
+        toast({
+            variant: "destructive",
+            title: "Webhook Not Configured",
+            description: "Please configure the tracking webhook in settings before submitting a tracking number.",
         });
+        return; // Stop execution
+      }
+      
+      const webhookUrl = settingsSnap.data().url;
+
+      // If webhook exists, proceed to update the order
+      const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
+      const updatedData = {
+        trackingNumber: trackingNumber,
+        status: 'Shipped' as const,
+      };
+      
+      await updateDoc(orderRef, updatedData);
+      console.log(`Successfully updated tracking number for order ${order.id}`);
+
+      // Then, send to webhook
+      const payload = {
+        order_id: order.id,
+        order_name: order.items.length > 0 ? order.items[0].name : "N/A",
+        trackingNumber: trackingNumber,
+      };
+
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      console.log(`Webhook sent for order ${order.id}`);
+
+      // Clear the input field on success
+      setTrackingNumbers(prev => {
+        const newTrackingNumbers = { ...prev };
+        delete newTrackingNumbers[order.id];
+        return newTrackingNumbers;
+      });
 
     } catch (error) {
-        const contextualError = new FirestorePermissionError({
-            path: orderRef.path,
-            operation: 'update',
-            requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', contextualError);
-        console.error(`Error updating tracking number for order ${order.id}:`, error);
-        alert("Failed to update tracking number. Check console for details.");
+      const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
+      const contextualError = new FirestorePermissionError({
+        path: orderRef.path,
+        operation: 'update',
+        requestResourceData: { trackingNumber },
+      });
+      errorEmitter.emit('permission-error', contextualError);
+      console.error(`Error updating tracking number for order ${order.id}:`, error);
+      alert("Failed to update tracking number. Check console for details.");
     }
   };
 
