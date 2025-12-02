@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
 
 type Product = {
   name: string;
@@ -335,7 +336,7 @@ export default function MasterShopifyOrdersPage() {
                   <FormItem>
                     <FormLabel>Customer Address</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Textarea {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -443,7 +444,7 @@ export default function MasterShopifyOrdersPage() {
                        <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-2">
                         <h3 className="font-semibold mb-2">Customer Details</h3>
                         <p>{order.customer.name}</p>
-                        <p className="text-muted-foreground">{order.customer.address}</p>
+                        <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
                         <p className="text-muted-foreground">{order.customer.phone}</p>
                         <Separator className="my-2" />
                         <div className="flex flex-col gap-2">
@@ -504,7 +505,7 @@ export default function MasterShopifyOrdersPage() {
                      <div className="bg-muted/50 p-3 rounded-lg text-sm self-start">
                         <h3 className="font-semibold mb-2">Customer Details</h3>
                         <p>{order.customer.name}</p>
-                        <p className="text-muted-foreground">{order.customer.address}</p>
+                        <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
                         <p className="text-muted-foreground">{order.customer.phone}</p>
                         <p className="font-semibold mt-2">Tracking: <span className="font-normal text-primary">{order.trackingNumber}</span></p>
                       </div>
