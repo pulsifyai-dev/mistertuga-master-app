@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Loader2, Database, Pencil } from 'lucide-react';
-import { collectionGroup, query, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collectionGroup, query, onSnapshot, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useForm } from 'react-hook-form';
@@ -36,12 +36,16 @@ type Order = {
   id: string;
   country: string;
   countryCode: string;
-  date: string;
+  date: string; // Keeping as string for rendering
   status: 'Pending Production' | 'Shipped';
   customer: Customer;
   trackingNumber: string;
   items: Product[];
 };
+
+// Raw type from Firestore, where date can be a Timestamp
+type FirestoreOrder = Omit<Order, 'date'> & { date: Timestamp | string };
+
 
 const editOrderSchema = z.object({
   customerName: z.string().min(1, 'Name is required'),
@@ -63,11 +67,11 @@ const countryFlags: { [key: string]: React.ReactNode } = {
   ES: <FlagES />,
 };
 
-const mockOrdersForSeeding: Omit<Order, 'id'>[] = [
+const mockOrdersForSeeding = [
     {
       country: "Portugal",
       countryCode: "PT",
-      date: "2024-05-20",
+      date: new Date("2024-05-20"),
       status: "Pending Production",
       customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351912345678" },
       trackingNumber: "",
@@ -78,7 +82,7 @@ const mockOrdersForSeeding: Omit<Order, 'id'>[] = [
     {
       country: "Germany",
       countryCode: "DE",
-      date: "2024-05-19",
+      date: new Date("2024-05-19"),
       status: "Pending Production",
       customer: { name: "Hans Müller", address: "Musterstraße 1, Berlin", phone: "+4917612345678" },
       trackingNumber: "",
@@ -89,7 +93,7 @@ const mockOrdersForSeeding: Omit<Order, 'id'>[] = [
     {
       country: "Spain",
       countryCode: "ES",
-      date: "2024-05-18",
+      date: new Date("2024-05-18"),
       status: "Shipped",
       customer: { name: "Maria García", address: "Calle Mayor 5, Madrid", phone: "+34600123456" },
       trackingNumber: "ES123456789",
@@ -136,7 +140,18 @@ export default function MasterShopifyOrdersPage() {
 
     setPageLoading(true);
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const allOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      const allOrders = querySnapshot.docs.map(doc => {
+        const data = doc.data() as FirestoreOrder;
+        let dateString = '';
+        if (data.date) {
+            if (data.date instanceof Timestamp) {
+                dateString = data.date.toDate().toISOString().split('T')[0];
+            } else if (typeof data.date === 'string') {
+                dateString = data.date;
+            }
+        }
+        return { ...data, id: doc.id, date: dateString } as Order;
+      });
       setOrders(allOrders);
       setPageLoading(false);
     }, (error) => {
@@ -190,6 +205,7 @@ export default function MasterShopifyOrdersPage() {
     const orderRef = doc(firestore, 'orders', editingOrder.countryCode, 'orders', editingOrder.id);
     const updatedData: Partial<Order> = {
       customer: {
+        ...editingOrder.customer,
         name: data.customerName,
         address: data.customerAddress,
         phone: data.customerPhone.replace(/\s/g, ''),
@@ -375,7 +391,7 @@ export default function MasterShopifyOrdersPage() {
                   <p className="text-sm text-muted-foreground">Clique no botão abaixo para preencher com dados de exemplo.</p>
               </div>
               <Button onClick={seedDatabase} disabled={isSeeding}>
-                  {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2" />}
+                  {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
                   {isSeeding ? 'Aguarde...' : 'Adicionar Dados de Exemplo'}
               </Button>
           </Card>
