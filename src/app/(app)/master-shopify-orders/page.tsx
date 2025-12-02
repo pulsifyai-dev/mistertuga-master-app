@@ -77,7 +77,7 @@ const mockOrdersForSeeding = [
       customer: { name: "João Silva", address: "Rua das Flores 123, Lisboa", phone: "+351912345678" },
       trackingNumber: "",
       items: [
-        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://cdn.shopify.com/s/files/1/0980/5355/4507/files/MARRETAS_FC_19.jpg?v=1760989759", version: "1.0" },
+        { name: "Caneca Personalizada", productId: "PROD-001", customization: "Foto de um gato", size: "11oz", quantity: 1, thumbnailUrl: "https://cdn.shopify.com/s/files/1/0925/7972/5693/files/FullSizeRender_bf3a04cc-2b0e-4c0f-8e01-057d4926999b.jpg?v=1764020613", version: "1.0" },
       ],
     },
     {
