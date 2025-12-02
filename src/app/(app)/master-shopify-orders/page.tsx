@@ -44,7 +44,7 @@ type Order = {
 };
 
 // Raw type from Firestore, where date can be a Timestamp
-type FirestoreOrder = Omit<Order, 'date'> & { date: Timestamp | string };
+type FirestoreOrder = Omit<Order, 'date' | 'items'> & { date: Timestamp | string; items?: Product[] };
 
 
 const editOrderSchema = z.object({
