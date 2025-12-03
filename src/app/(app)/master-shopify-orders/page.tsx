@@ -219,23 +219,31 @@ export default function MasterShopifyOrdersPage() {
     toast({ title: "Export Successful", description: `${ordersToExport.length} ${exportType} orders have been exported.` });
   };
   
-  const handleExportPDF = () => {
-    const dashboard = document.getElementById('dashboard-content');
-    if (dashboard) {
-      html2canvas(dashboard).then((canvas) => {
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        const ratio = canvasWidth / canvasHeight;
-        const width = pdfWidth;
-        const height = width / ratio;
-        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
-        pdf.save('dashboard.pdf');
+  const handleExportPDF = async () => {
+    const pdf = new jsPDF("p", "mm", "a4");
+    const cards = document.querySelectorAll(".order-card");
+
+    let firstPage = true;
+
+    for (const card of cards) {
+      const canvas = await html2canvas(card as HTMLElement, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
       });
+
+      const imgData = canvas.toDataURL("image/png");
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      if (!firstPage) pdf.addPage();
+      firstPage = false;
+
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
     }
+
+    pdf.save(`orders_${new Date().toISOString().split("T")[0]}.pdf`);
   };
 
   if (pageLoading || isUserLoading) return <div className="flex h-[400px] w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -252,7 +260,7 @@ export default function MasterShopifyOrdersPage() {
   const shippedOrders = filteredOrders.filter(o => o.status === 'Shipped');
 
   const renderOrderCard = (order: Order, isShipped = false) => (
-    <Card key={order.id} className="bg-card">
+    <Card key={order.id} className="bg-card order-card">
       <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
         <div className="flex items-center gap-2 font-semibold text-card-foreground">
           {countryFlags[order.countryCode]}<span>{order.id}</span>
@@ -265,7 +273,13 @@ export default function MasterShopifyOrdersPage() {
         <div className="md:col-span-2 flex flex-col gap-4">
           {Array.isArray(order.items) && order.items.map((item, index) => (
             <div key={index} className="flex items-start gap-4">
-              <Image src={item.thumbnailUrl || `https://placehold.co/80x80/e2e8f0/64748b?text=N/A`} alt={item.name} width={80} height={80} className="rounded-md" />
+              <div className="thumb-wrapper">
+                <img
+                  src={item.thumbnailUrl || `https://placehold.co/80x80/e2e8f0/64748b?text=N/A`}
+                  alt={item.name}
+                  className="thumb-image"
+                />
+              </div>
               <div className="text-sm">
                 <p className="font-semibold">{item.name}</p>
                 <p className="text-muted-foreground">ID: {item.productId}</p>
