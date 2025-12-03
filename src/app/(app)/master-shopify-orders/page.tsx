@@ -219,6 +219,135 @@ export default function MasterShopifyOrdersPage() {
     toast({ title: "Export Successful", description: `${ordersToExport.length} ${exportType} orders have been exported.` });
   };
   
+  const handleExportPackingSheetPDF = async () => {
+    const ordersToExport = filteredOrders;
+  
+    if (ordersToExport.length === 0) {
+      toast({
+        title: "No Orders to Export",
+        description: "There are no orders in the current filter.",
+      });
+      return;
+    }
+  
+    const pdf = new jsPDF("p", "mm", "a4");
+    let firstPage = true;
+  
+    for (const order of ordersToExport) {
+      const container = document.createElement("div");
+      container.style.width = "800px";
+      container.style.padding = "20px";
+      container.style.fontFamily = "Arial, sans-serif";
+      container.style.fontSize = "14px";
+      container.style.background = "#ffffff";
+      container.style.color = "#000";
+      container.style.border = "1px solid #ddd";
+  
+      container.innerHTML = `
+        <h2 style="margin:0 0 15px 0; font-size:20px; font-weight:600;">
+          Order ${order.id.replace(/^#/, "")} — ${order.date}
+        </h2>
+      
+        <div style="
+          margin-bottom:20px; 
+          padding:12px; 
+          border:1px solid #ddd; 
+          background:#fafafa;
+          border-radius:6px;
+        ">
+          <strong style="font-size:15px;">Customer</strong><br/>
+          <div style="margin-top:4px; line-height:1.4;">
+            ${order.customer.name}<br/>
+            ${order.customer.address.replace(/\n/g, "<br/>")}<br/>
+            <strong>Phone:</strong> ${order.customer.phone}
+          </div>
+      
+          <div style="margin-top:10px;">
+            <strong>Status:</strong> ${order.status}<br/>
+            <strong>Tracking:</strong> ${order.trackingNumber || "N/A"}
+          </div>
+        </div>
+      
+        <h3 style="margin:20px 0 10px 0; font-size:16px;">Items</h3>
+      
+        <table style="width:100%; border-collapse: collapse; font-size:13px;">
+          <thead>
+            <tr style="background:#f0f0f0;">
+              <th style="border:1px solid #ccc; padding:8px; width:90px;">Thumbnail</th>
+              <th style="border:1px solid #ccc; padding:8px;">Product</th>
+              <th style="border:1px solid #ccc; padding:8px; width:50px;">Size</th>
+              <th style="border:1px solid #ccc; padding:8px; width:40px;">Qty</th>
+              <th style="border:1px solid #ccc; padding:8px; width:90px;">Version</th>
+              <th style="border:1px solid #ccc; padding:8px; width:110px;">Customization</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items
+              .map(
+                item => `
+                <tr>
+                  <td style="border:1px solid #ccc; padding:8px; text-align:center;">
+                    <img 
+                      src="${item.thumbnailUrl}" 
+                      width="80" height="80" 
+                      style="object-fit:contain; border-radius:4px;"
+                    />
+                  </td>
+                  <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
+                  <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
+                  <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
+                  <td style="border:1px solid #ccc; padding:8px;">${item.version}</td>
+                  <td style="border:1px solid #ccc; padding:8px;">${item.customization}</td>
+                </tr>
+              `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      
+        ${
+          order.note
+            ? `
+          <h3 style="margin:25px 0 8px 0; font-size:16px;">Notes</h3>
+          <div style="
+            white-space:pre-line; 
+            border:1px solid #ccc; 
+            padding:10px; 
+            border-radius:6px;
+            background:#fafafa;
+            font-size:13px;
+          ">
+            ${order.note}
+          </div>
+        `
+            : ""
+        }
+      `;
+  
+      document.body.appendChild(container);
+  
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+      });
+  
+      const imgData = canvas.toDataURL("image/png");
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+  
+      if (!firstPage) pdf.addPage();
+      firstPage = false;
+  
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+  
+      document.body.removeChild(container);
+    }
+  
+    pdf.save(`packing_sheets_${new Date().toISOString().split("T")[0]}.pdf`);
+  };  
+
   const handleExportPDF = async () => {
     const pdf = new jsPDF("p", "mm", "a4");
     const cards = document.querySelectorAll(".order-card");
@@ -394,6 +523,7 @@ export default function MasterShopifyOrdersPage() {
                 <DropdownMenuItem onClick={() => handleExportCSV('shipped')}>Shipped orders</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExportCSV('all')}>All orders</DropdownMenuItem>
                 <DropdownMenuItem onClick={handleExportPDF}>Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPackingSheetPDF}>Export Packing Sheets (PDF)</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
