@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Database, Pencil, RotateCcw, StickyNote, Download } from 'lucide-react';
+import { Loader2, Database, Pencil, RotateCcw, StickyNote, Download, Calendar as CalendarIcon, X } from 'lucide-react';
 import { collectionGroup, query, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -20,6 +20,8 @@ import { useToast } from '@/hooks/use-toast';
 import { updateOrderDetails } from './actions';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // --- Type Definitions ---
 type Product = { name: string; productId: string; customization: string; size: string; quantity: number; thumbnailUrl: string; version: string; };
@@ -44,6 +46,16 @@ const FlagDE = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="
 const FlagES = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 20 15"><path fill="#C60B1E" d="M0 0h20v3.75H0zM0 11.25h20V15H0z"/><path fill="#FFC400" d="M0 3.75h20v7.5H0z"/></svg>;
 const countryFlags: { [key: string]: React.ReactNode } = { PT: <FlagPT />, DE: <FlagDE />, ES: <FlagES /> };
 
+// --- Date Filter Components ---
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+// Helper to pad numbers
+const pad = (n: number) => n.toString().padStart(2, '0');
+
 // --- Main Page Component ---
 export default function MasterShopifyOrdersPage() {
   const { firestore, user, isUserLoading } = useFirebase();
@@ -55,6 +67,11 @@ export default function MasterShopifyOrdersPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Date Filter State
+  const [startDate, setStartDate] = useState<{ day: string; month: string }>({ day: '', month: '' });
+  const [endDate, setEndDate] = useState<{ day: string; month: string }>({ day: '', month: '' });
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
 
   const { toast } = useToast();
   const form = useForm<EditOrderSchema>({ resolver: zodResolver(editOrderSchema) });
@@ -142,7 +159,41 @@ export default function MasterShopifyOrdersPage() {
 
   const handleTrackingNumberChange = (orderId: string, value: string) => setTrackingNumbers(prev => ({ ...prev, [orderId]: value }));
 
-  const filteredOrders = activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter);
+  const filterOrdersByDate = (ordersToFilter: Order[]) => {
+    if (!startDate.day || !startDate.month || !endDate.day || !endDate.month) return ordersToFilter;
+
+    // Construct date strings for comparison (MM-DD format is enough since we ignore year mostly, but let's assume current year for simplicity or handle strictly month/day)
+    // Actually, orders have 'YYYY-MM-DD'. Let's parse that.
+    
+    // Convert selected month name to index (0-11) + 1 => string padded
+    const startMonthIndex = MONTHS.indexOf(startDate.month) + 1;
+    const endMonthIndex = MONTHS.indexOf(endDate.month) + 1;
+
+    const startMonthStr = pad(startMonthIndex);
+    const endMonthStr = pad(endMonthIndex);
+    const startDayStr = pad(parseInt(startDate.day));
+    const endDayStr = pad(parseInt(endDate.day));
+
+    // We will compare strings "MM-DD" for filtering across any year, or assume current year.
+    // The prompt implies a simple date filter. Let's assume the user wants to filter within the current year or just by absolute date range if years were involved.
+    // However, the UI requested is just Day/Month. This usually implies a "this year" context or "recurring date".
+    // Given the order dates are full YYYY-MM-DD strings.
+    // Let's assume the filter applies to the date regardless of year, OR (better) assume the current year for the filter bounds if year isn't selected.
+    // But since year isn't in the filter UI, let's just filter by comparing the "MM-DD" part of the strings. 
+    // Wait, that might be weird if range wraps around year end.
+    // Let's stick to standard string comparison on "MM-DD" which works for within-year ranges.
+    
+    const startCompare = `${startMonthStr}-${startDayStr}`;
+    const endCompare = `${endMonthStr}-${endDayStr}`;
+
+    return ordersToFilter.filter(o => {
+      const [_, m, d] = o.date.split('-');
+      const orderCompare = `${m}-${d}`;
+      return orderCompare >= startCompare && orderCompare <= endCompare;
+    });
+  };
+
+  const filteredOrders = filterOrdersByDate(activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter));
 
   const handleExportPackingSheetPDF = async (mode: "pending" | "shipped" | "all") => {
     let ordersToExport: Order[];
@@ -335,6 +386,14 @@ export default function MasterShopifyOrdersPage() {
     </Card>
   );
 
+  const clearDateFilter = () => {
+    setStartDate({ day: '', month: '' });
+    setEndDate({ day: '', month: '' });
+    setIsDateFilterOpen(false);
+  };
+
+  const isFilterActive = startDate.day && startDate.month && endDate.day && endDate.month;
+
   return (
     <>
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
@@ -385,6 +444,68 @@ export default function MasterShopifyOrdersPage() {
             <span className="ml-2">Spain</span>
             {activeFilter !== 'ES' && pendingCounts.ES > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ES}</span>}
           </Button>
+
+          {/* Date Filter */}
+          <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button variant={isFilterActive ? "default" : "outline"} className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                {isFilterActive ? (
+                  <span>{startDate.day} {startDate.month.slice(0,3)} - {endDate.day} {endDate.month.slice(0,3)}</span>
+                ) : (
+                  <span>Date Filter</span>
+                )}
+                {isFilterActive && <span className="ml-auto" onClick={(e) => { e.stopPropagation(); clearDateFilter(); }}><X className="h-3 w-3" /></span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-4" align="start">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">Start Date</h4>
+                  <div className="flex gap-2">
+                    <Select value={startDate.day} onValueChange={(v) => setStartDate(p => ({...p, day: v}))}>
+                      <SelectTrigger className="w-[70px]">
+                        <SelectValue placeholder="Day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DAYS.map(d => <SelectItem key={d} value={d.toString()}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={startDate.month} onValueChange={(v) => setStartDate(p => ({...p, month: v}))}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">End Date</h4>
+                  <div className="flex gap-2">
+                    <Select value={endDate.day} onValueChange={(v) => setEndDate(p => ({...p, day: v}))}>
+                      <SelectTrigger className="w-[70px]">
+                        <SelectValue placeholder="Day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DAYS.map(d => <SelectItem key={d} value={d.toString()}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={endDate.month} onValueChange={(v) => setEndDate(p => ({...p, month: v}))}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <div className="ml-auto">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
