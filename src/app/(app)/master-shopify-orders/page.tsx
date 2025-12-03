@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Loader2, Database, Pencil, RotateCcw, StickyNote, Download } from 'lucide-react';
 import { collectionGroup, query, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
@@ -23,6 +24,7 @@ type Product = { name: string; productId: string; customization: string; size: s
 type Customer = { name: string; address: string; phone: string; };
 type Order = { id: string; country: string; countryCode: string; date: string; status: 'Pending Production' | 'Shipped'; customer: Customer; trackingNumber: string; items: Product[]; note?: string; };
 type FirestoreOrder = Omit<Order, 'date' | 'items' | 'customer'> & { date: Timestamp | string; items?: Product[]; note?: string; customer: Omit<Customer, 'phone'> & { phone: string | number } };
+type ExportType = 'pending' | 'shipped' | 'all';
 
 // --- Zod Schema for the Edit Modal ---
 const editOrderSchema = z.object({
@@ -140,10 +142,22 @@ export default function MasterShopifyOrdersPage() {
 
   const filteredOrders = activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter);
 
-  const handleExportCSV = () => {
-    const ordersToExport = filteredOrders.filter(o => o.status === 'Pending Production');
+  const handleExportCSV = (exportType: ExportType) => {
+    let ordersToExport: Order[];
+    switch (exportType) {
+      case 'pending':
+        ordersToExport = filteredOrders.filter(o => o.status === 'Pending Production');
+        break;
+      case 'shipped':
+        ordersToExport = filteredOrders.filter(o => o.status === 'Shipped');
+        break;
+      case 'all':
+        ordersToExport = filteredOrders;
+        break;
+    }
+
     if (ordersToExport.length === 0) {
-        toast({ title: "No Orders to Export", description: "There are no pending orders in the current filter." });
+        toast({ title: "No Orders to Export", description: `There are no ${exportType} orders in the current filter.` });
         return;
     }
 
@@ -159,7 +173,7 @@ export default function MasterShopifyOrdersPage() {
         if (str === undefined || str === null) return '';
         const s = String(str);
         if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-            return `"${s.replace(/"/g, '""')}"`; // Correctly escape double quotes
+            return `"${s.replace(/"/g, '""')}"`;
         }
         return s;
     };
@@ -195,12 +209,12 @@ export default function MasterShopifyOrdersPage() {
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
     const date = new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `pending_orders_${activeFilter}_${date}.csv`);
+    link.setAttribute('download', `${exportType}_orders_${activeFilter}_${date}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: "Export Successful", description: `${ordersToExport.length} pending orders have been exported.` });
+    toast({ title: "Export Successful", description: `${ordersToExport.length} ${exportType} orders have been exported.` });
   };
 
   if (pageLoading || isUserLoading) return <div className="flex h-[400px] w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -333,10 +347,19 @@ export default function MasterShopifyOrdersPage() {
             {activeFilter !== 'ES' && pendingCounts.ES > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ES}</span>}
           </Button>
           <div className="ml-auto">
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar Pendentes
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Download className="h-4 w-4" />
+                  <span className="sr-only">Export Orders</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportCSV('pending')}>Pending orders</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportCSV('shipped')}>Shipped orders</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportCSV('all')}>All orders</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       
