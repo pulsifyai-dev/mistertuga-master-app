@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { adminAuth, adminDb } from '@/lib/firebase/server';
 
 const signUpSchema = z.object({
+  name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(6),
   adminCode: z.string().optional(),
@@ -17,7 +18,7 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
     return { error: 'Invalid data provided.' };
   }
 
-  const { email, password, adminCode } = validation.data;
+  const { name, email, password, adminCode } = validation.data;
   const adminRegistrationCode = process.env.ADMIN_REGISTRATION_CODE;
 
   let role = 'BASIC';
@@ -46,6 +47,7 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
     const userRecord = await adminAuth.createUser({
       email,
       password,
+      displayName: name,
       emailVerified: false,
       disabled: false,
     });
@@ -53,7 +55,8 @@ export async function signUp(data: SignUpSchema): Promise<{ error?: string, role
     await adminAuth.setCustomUserClaims(userRecord.uid, { role });
 
     await adminDb.collection('users').doc(userRecord.uid).set({
-      id: userRecord.uid, // Add this line
+      id: userRecord.uid,
+      displayName: name,
       email: userRecord.email,
       role: role,
       createdAt: new Date().toISOString(),

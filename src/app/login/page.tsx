@@ -24,9 +24,14 @@ const loginSchema = z.object({
 });
 
 const signUpSchema = z.object({
+  name: z.string().min(1, { message: 'Name is required.' }),
   email: z.string().email({ message: 'Invalid email address.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+  confirmPassword: z.string(),
   adminCode: z.string().optional(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 type LoginSchema = z.infer<typeof loginSchema>;
@@ -44,14 +49,13 @@ export default function LoginPage() {
 
   const signUpForm = useForm<SignUpSchema>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { email: '', password: '', adminCode: '' },
+    defaultValues: { name: '', email: '', password: '', confirmPassword: '', adminCode: '' },
   });
 
   const handleLogin = async (data: LoginSchema) => {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      // Force refresh of the token to get custom claims
       await userCredential.user.getIdToken(true);
       router.push('/dashboard');
     } catch (error: any) {
@@ -82,7 +86,6 @@ export default function LoginPage() {
       });
       try {
         const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-        // Force refresh of the token to get custom claims, especially for the new ADMIN or USER
         await userCredential.user.getIdToken(true);
         router.push('/dashboard');
       } catch(e: any) {
@@ -161,6 +164,19 @@ export default function LoginPage() {
             <CardContent>
               <Form {...signUpForm}>
                 <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
+                   <FormField
+                    control={signUpForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Your Name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={signUpForm.control}
                     name="email"
@@ -180,6 +196,19 @@ export default function LoginPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="••••••••" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={signUpForm.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
                         <FormControl>
                           <Input type="password" placeholder="••••••••" {...field} />
                         </FormControl>

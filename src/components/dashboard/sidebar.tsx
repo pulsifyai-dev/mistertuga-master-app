@@ -35,17 +35,18 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
   const { user, role, signOut } = useAuth();
 
-  const menuItems = [
+  const allMenuItems = [
     {
       href: '/dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
+      adminOnly: true,
     },
     {
       href: '/master-shopify-orders',
       label: 'Shopify Orders',
       icon: ShoppingBag,
-      adminOnly: true,
+      adminOnly: false, // Accessible to all roles
     },
     {
       href: '/profit-stats',
@@ -54,6 +55,10 @@ export default function DashboardSidebar() {
       adminOnly: true,
     },
   ];
+
+  const menuItems = allMenuItems.filter(item => 
+    !item.adminOnly || (item.adminOnly && role === 'ADMIN')
+  );
 
   return (
     <>
@@ -70,23 +75,20 @@ export default function DashboardSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {menuItems.map(
-            (item) =>
-              (!item.adminOnly || role === 'ADMIN') && (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.href}
-                    tooltip={item.label}
-                  >
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-          )}
+          {menuItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === item.href}
+                tooltip={item.label}
+              >
+                <Link href={item.href}>
+                  <item.icon />
+                  <span>{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
