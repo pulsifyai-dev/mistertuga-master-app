@@ -60,7 +60,7 @@ export default function MasterShopifyOrdersPage() {
       form.reset({
         customerName: editingOrder.customer.name,
         customerAddress: editingOrder.customer.address,
-        customerPhone: String(editingOrder.customer.phone || ''), // Robust conversion
+        customerPhone: String(editingOrder.customer.phone || ''),
         trackingNumber: editingOrder.trackingNumber || '',
         note: editingOrder.note || '',
       });
@@ -78,14 +78,11 @@ export default function MasterShopifyOrdersPage() {
       const allOrders = snapshot.docs.map(doc => {
         const data = doc.data() as FirestoreOrder;
         const date = data.date instanceof Timestamp ? data.date.toDate().toISOString().split('T')[0] : String(data.date).split('T')[0];
-        
-        // Robustly handle customer data and phone number conversion
         const customer: Customer = {
           name: data.customer?.name || '',
           address: data.customer?.address || '',
-          phone: String(data.customer?.phone || ''), // Ensure phone is always a string
+          phone: String(data.customer?.phone || ''),
         };
-
         return { ...data, id: doc.id, date, customer, items: data.items || [] } as Order;
       });
       setOrders(allOrders);
@@ -143,6 +140,13 @@ export default function MasterShopifyOrdersPage() {
 
   if (pageLoading || isUserLoading) return <div className="flex h-[400px] w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!user) return <div className="text-center"><h1 className="font-headline text-2xl font-bold">Access Denied</h1><p>Please log in.</p></div>;
+
+  const pendingCounts = {
+    ALL: orders.filter(o => o.status === 'Pending Production').length,
+    PT: orders.filter(o => o.countryCode === 'PT' && o.status === 'Pending Production').length,
+    DE: orders.filter(o => o.countryCode === 'DE' && o.status === 'Pending Production').length,
+    ES: orders.filter(o => o.countryCode === 'ES' && o.status === 'Pending Production').length,
+  };
 
   const filteredOrders = activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter);
   const pendingOrders = filteredOrders.filter(o => o.status === 'Pending Production');
@@ -217,7 +221,7 @@ export default function MasterShopifyOrdersPage() {
   return (
     <>
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent>
+         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Order {editingOrder?.id}</DialogTitle>
             <DialogDescription>Update customer details, tracking, and notes.</DialogDescription>
@@ -244,20 +248,44 @@ export default function MasterShopifyOrdersPage() {
           <p className="text-muted-foreground">Faça a gestão e acompanhe os seus pedidos Shopify aqui.</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant={activeFilter === 'ALL' ? 'default' : 'outline'} onClick={() => setActiveFilter('ALL')}>ALL</Button>
-          <Button variant={activeFilter === 'PT' ? 'default' : 'outline'} onClick={() => setActiveFilter('PT')}><FlagPT /> <span className="ml-2">Portugal</span></Button>
-          <Button variant={activeFilter === 'DE' ? 'default' : 'outline'} onClick={() => setActiveFilter('DE')}><FlagDE /> <span className="ml-2">Germany</span></Button>
-          <Button variant={activeFilter === 'ES' ? 'default' : 'outline'} onClick={() => setActiveFilter('ES')}><FlagES /> <span className="ml-2">Spain</span></Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant={activeFilter === 'ALL' ? 'default' : 'outline'} onClick={() => setActiveFilter('ALL')} className="flex items-center">
+            ALL
+            {activeFilter !== 'ALL' && pendingCounts.ALL > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ALL}</span>}
+          </Button>
+          <Button variant={activeFilter === 'PT' ? 'default' : 'outline'} onClick={() => setActiveFilter('PT')} className="flex items-center">
+            <FlagPT />
+            <span className="ml-2">Portugal</span>
+            {activeFilter !== 'PT' && pendingCounts.PT > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.PT}</span>}
+          </Button>
+          <Button variant={activeFilter === 'DE' ? 'default' : 'outline'} onClick={() => setActiveFilter('DE')} className="flex items-center">
+            <FlagDE />
+            <span className="ml-2">Germany</span>
+            {activeFilter !== 'DE' && pendingCounts.DE > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.DE}</span>}
+          </Button>
+          <Button variant={activeFilter === 'ES' ? 'default' : 'outline'} onClick={() => setActiveFilter('ES')} className="flex items-center">
+            <FlagES />
+            <span className="ml-2">Spain</span>
+            {activeFilter !== 'ES' && pendingCounts.ES > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ES}</span>}
+          </Button>
         </div>
       
         {!pageLoading && orders.length === 0 && (
-            <Card className="flex flex-col items-center justify-center p-8 gap-4 text-center">{/* ... */}</Card>
+            <Card className="flex flex-col items-center justify-center p-8 gap-4 text-center">
+                <Database className="w-12 h-12 text-muted-foreground" />
+                <div className="flex flex-col gap-1">
+                    <h3 className="font-headline text-lg font-semibold">O seu banco de dados está vazio</h3>
+                    <p className="text-sm text-muted-foreground">Não há pedidos para exibir.</p>
+                </div>
+            </Card>
         )}
 
         {pendingOrders.length > 0 && (
           <section>
-            <h2 className="text-xl font-semibold font-headline mb-4">Pending Production</h2>
+            <h2 className="mb-4 flex items-baseline gap-2 font-headline text-xl font-semibold">
+              Pending Production
+              {pendingOrders.length > 0 && <span className="font-medium text-muted-foreground">{pendingOrders.length}</span>}
+            </h2>
             <div className="flex flex-col gap-4">{pendingOrders.map(order => renderOrderCard(order, false))}</div>
           </section>
         )}
@@ -266,7 +294,10 @@ export default function MasterShopifyOrdersPage() {
 
         {shippedOrders.length > 0 && (
           <section>
-            <h2 className="text-xl font-semibold font-headline mb-4">Shipped Orders</h2>
+            <h2 className="mb-4 flex items-baseline gap-2 font-headline text-xl font-semibold">
+              Shipped Orders
+              {shippedOrders.length > 0 && <span className="font-medium text-muted-foreground">{shippedOrders.length}</span>}
+            </h2>
             <div className="flex flex-col gap-4">{shippedOrders.map(order => renderOrderCard(order, true))}</div>
           </section>
         )}
