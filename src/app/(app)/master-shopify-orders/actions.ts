@@ -11,6 +11,7 @@ const updateOrderSchema = z.object({
   customerAddress: z.string().min(1),
   customerPhone: z.string().min(1),
   trackingNumber: z.string().optional(),
+  note: z.string().optional(), // Added note field
 });
 
 export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>) {
@@ -20,7 +21,7 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
     return { success: false, error: validation.error.flatten().fieldErrors };
   }
 
-  const { orderId, countryCode, customerName, customerAddress, customerPhone, trackingNumber } = validation.data;
+  const { orderId, countryCode, customerName, customerAddress, customerPhone, trackingNumber, note } = validation.data;
 
   try {
     const orderRef = adminDb.collection('orders').doc(countryCode).collection('orders').doc(orderId);
@@ -29,6 +30,7 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
       'customer.name': customerName,
       'customer.address': customerAddress,
       'customer.phone': customerPhone.replace(/\s/g, ''),
+      note: note || '', // Add or clear the note
     };
 
     if (trackingNumber) {

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { Loader2, Database, Pencil, RotateCcw } from 'lucide-react';
+import { Loader2, Database, Pencil, RotateCcw, StickyNote } from 'lucide-react';
 import { collectionGroup, query, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -22,7 +22,7 @@ import { updateOrderDetails } from './actions';
 type Product = { name: string; productId: string; customization: string; size: string; quantity: number; thumbnailUrl: string; version: string; };
 type Customer = { name: string; address: string; phone: string; };
 type Order = { id: string; country: string; countryCode: string; date: string; status: 'Pending Production' | 'Shipped'; customer: Customer; trackingNumber: string; items: Product[]; note?: string; };
-type FirestoreOrder = Omit<Order, 'date' | 'items'> & { date: Timestamp | string; items?: Product[]; note?: string };
+type FirestoreOrder = Omit<Order, 'date' | 'items' | 'customer'> & { date: Timestamp | string; items?: Product[]; note?: string; customer: Omit<Customer, 'phone'> & { phone: string | number } };
 
 // --- Zod Schema for the Edit Modal ---
 const editOrderSchema = z.object({
@@ -30,6 +30,7 @@ const editOrderSchema = z.object({
   customerAddress: z.string().min(1, 'Address is required'),
   customerPhone: z.string().min(1, 'Phone is required'),
   trackingNumber: z.string().optional(),
+  note: z.string().optional(),
 });
 type EditOrderSchema = z.infer<typeof editOrderSchema>;
 
@@ -59,8 +60,9 @@ export default function MasterShopifyOrdersPage() {
       form.reset({
         customerName: editingOrder.customer.name,
         customerAddress: editingOrder.customer.address,
-        customerPhone: editingOrder.customer.phone,
+        customerPhone: String(editingOrder.customer.phone || ''), // Robust conversion
         trackingNumber: editingOrder.trackingNumber || '',
+        note: editingOrder.note || '',
       });
     }
   }, [editingOrder, form]);
@@ -76,7 +78,15 @@ export default function MasterShopifyOrdersPage() {
       const allOrders = snapshot.docs.map(doc => {
         const data = doc.data() as FirestoreOrder;
         const date = data.date instanceof Timestamp ? data.date.toDate().toISOString().split('T')[0] : String(data.date).split('T')[0];
-        return { ...data, id: doc.id, date, items: data.items || [] } as Order;
+        
+        // Robustly handle customer data and phone number conversion
+        const customer: Customer = {
+          name: data.customer?.name || '',
+          address: data.customer?.address || '',
+          phone: String(data.customer?.phone || ''), // Ensure phone is always a string
+        };
+
+        return { ...data, id: doc.id, date, customer, items: data.items || [] } as Order;
       });
       setOrders(allOrders);
       setPageLoading(false);
@@ -107,11 +117,18 @@ export default function MasterShopifyOrdersPage() {
     if (!user || !firestore) return;
     const trackingNumber = trackingNumbers[order.id];
     if (!trackingNumber) { toast({ variant: "destructive", title: "Missing Tracking Number" }); return; }
-
     startTransition(async () => {
-      const result = await updateOrderDetails({ ...order, ...order.customer, customerName: order.customer.name, customerAddress: order.customer.address, customerPhone: order.customer.phone, trackingNumber });
-      if(result.success) { toast({ title: "Tracking Submitted"}); setTrackingNumbers(p => ({...p, [order.id]: ''})); } 
-      else { toast({ variant: "destructive", title: "Update Failed"}); }
+        const result = await updateOrderDetails({ 
+            orderId: order.id,
+            countryCode: order.countryCode,
+            customerName: order.customer.name, 
+            customerAddress: order.customer.address, 
+            customerPhone: order.customer.phone,
+            note: order.note,
+            trackingNumber 
+        });
+        if(result.success) { toast({ title: "Tracking Submitted"}); setTrackingNumbers(p => ({...p, [order.id]: ''})); } 
+        else { toast({ variant: "destructive", title: "Update Failed"}); }
     });
   };
   
@@ -166,6 +183,15 @@ export default function MasterShopifyOrdersPage() {
             <p>{order.customer.name}</p>
             <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
             <p className="text-muted-foreground">{order.customer.phone}</p>
+            {order.note && (
+                <>
+                    <Separator className="my-2" />
+                    <div className="flex items-start gap-2 text-muted-foreground">
+                        <StickyNote className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600" />
+                        <p className="text-sm italic whitespace-pre-line">{order.note}</p>
+                    </div>
+                </>
+            )}
             {isShipped ? (
                 <div className="flex items-center justify-between mt-2">
                     <p className="font-semibold">Tracking: <span className="font-normal text-primary">{order.trackingNumber}</span></p>
@@ -178,7 +204,7 @@ export default function MasterShopifyOrdersPage() {
                 <Separator className="my-2" />
                 <div className="flex flex-col gap-2">
                     <Input type="text" placeholder="Número de rastreio" value={trackingNumbers[order.id] || ''} onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)} />
-                    <Button onClick={() => handleSubmitTrackingNumber(order)}>Submit</Button>
+                    <Button onClick={() => handleSubmitTrackingNumber(order)} disabled={isPending}>{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit</Button>
                 </div>
               </>
             )}
@@ -194,7 +220,7 @@ export default function MasterShopifyOrdersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Order {editingOrder?.id}</DialogTitle>
-            <DialogDescription>Update customer details and tracking information.</DialogDescription>
+            <DialogDescription>Update customer details, tracking, and notes.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleUpdateOrder)} className="space-y-4 pt-4">
@@ -202,6 +228,7 @@ export default function MasterShopifyOrdersPage() {
               <FormField control={form.control} name="customerAddress" render={({ field }) => <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
               <FormField control={form.control} name="customerPhone" render={({ field }) => <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
               <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormLabel>Tracking</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="note" render={({ field }) => <FormItem><FormLabel>Note</FormLabel><FormControl><Textarea {...field} placeholder="Add a manual note for this order..." /></FormControl><FormMessage /></FormItem>} />
               <DialogFooter className="pt-4">
                 <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
                 <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save Changes</Button>
@@ -225,13 +252,7 @@ export default function MasterShopifyOrdersPage() {
         </div>
       
         {!pageLoading && orders.length === 0 && (
-            <Card className="flex flex-col items-center justify-center p-8 gap-4 text-center">
-                <Database className="w-12 h-12 text-muted-foreground" />
-                <div className="flex flex-col gap-1">
-                    <h3 className="font-headline text-lg font-semibold">O seu banco de dados está vazio</h3>
-                    <p className="text-sm text-muted-foreground">Não há pedidos para exibir.</p>
-                </div>
-            </Card>
+            <Card className="flex flex-col items-center justify-center p-8 gap-4 text-center">{/* ... */}</Card>
         )}
 
         {pendingOrders.length > 0 && (
