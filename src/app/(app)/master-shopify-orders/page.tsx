@@ -18,6 +18,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { updateOrderDetails } from './actions';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 // --- Type Definitions ---
 type Product = { name: string; productId: string; customization: string; size: string; quantity: number; thumbnailUrl: string; version: string; };
@@ -216,6 +218,25 @@ export default function MasterShopifyOrdersPage() {
     document.body.removeChild(link);
     toast({ title: "Export Successful", description: `${ordersToExport.length} ${exportType} orders have been exported.` });
   };
+  
+  const handleExportPDF = () => {
+    const dashboard = document.getElementById('dashboard-content');
+    if (dashboard) {
+      html2canvas(dashboard).then((canvas) => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const ratio = canvasWidth / canvasHeight;
+        const width = pdfWidth;
+        const height = width / ratio;
+        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+        pdf.save('dashboard.pdf');
+      });
+    }
+  };
 
   if (pageLoading || isUserLoading) return <div className="flex h-[400px] w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!user) return <div className="text-center"><h1 className="font-headline text-2xl font-bold">Access Denied</h1><p>Please log in.</p></div>;
@@ -320,7 +341,7 @@ export default function MasterShopifyOrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8" id="dashboard-content">
         <div>
           <h1 className="font-headline text-3xl font-bold tracking-tight">Pedidos Shopify</h1>
           <p className="text-muted-foreground">Faça a gestão e acompanhe os seus pedidos Shopify aqui.</p>
@@ -358,6 +379,7 @@ export default function MasterShopifyOrdersPage() {
                 <DropdownMenuItem onClick={() => handleExportCSV('pending')}>Pending orders</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExportCSV('shipped')}>Shipped orders</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExportCSV('all')}>All orders</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>Export as PDF</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
