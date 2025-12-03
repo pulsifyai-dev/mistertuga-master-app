@@ -17,6 +17,7 @@ import {
   LogOut,
   Settings,
   ShoppingBag,
+  ShieldAlert,
 } from 'lucide-react';
 import { Logo } from '@/components/icons/logo';
 import { useAuth } from '@/hooks/use-auth';
@@ -37,9 +38,9 @@ export default function DashboardSidebar() {
 
   const allMenuItems = [
     {
-      href: '/dashboard',
-      label: 'Dashboard',
-      icon: LayoutDashboard,
+      href: '/profit-stats',
+      label: 'Profit Stats',
+      icon: BarChart3,
       adminOnly: true,
     },
     {
@@ -49,9 +50,9 @@ export default function DashboardSidebar() {
       adminOnly: false, // Accessible to all roles
     },
     {
-      href: '/profit-stats',
-      label: 'Profit Stats',
-      icon: BarChart3,
+      href: '/mistake-handling',
+      label: 'Mistake Handling',
+      icon: ShieldAlert,
       adminOnly: true,
     },
   ];
