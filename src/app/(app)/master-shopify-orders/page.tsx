@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { Loader2, Database, Pencil, RotateCcw, StickyNote } from 'lucide-react';
+import { Loader2, Database, Pencil, RotateCcw, StickyNote, Download } from 'lucide-react';
 import { collectionGroup, query, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -138,6 +138,71 @@ export default function MasterShopifyOrdersPage() {
 
   const handleTrackingNumberChange = (orderId: string, value: string) => setTrackingNumbers(prev => ({ ...prev, [orderId]: value }));
 
+  const filteredOrders = activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter);
+
+  const handleExportCSV = () => {
+    const ordersToExport = filteredOrders.filter(o => o.status === 'Pending Production');
+    if (ordersToExport.length === 0) {
+        toast({ title: "No Orders to Export", description: "There are no pending orders in the current filter." });
+        return;
+    }
+
+    const headers = [
+        'order_id', 'order_date', 'order_status', 'country', 'country_code', 'tracking_number',
+        'customer_name', 'customer_address', 'customer_phone', 'order_note', 'item_product_id', 'item_name',
+        'item_quantity', 'item_size', 'item_customization', 'item_version', 'item_thumbnail_url'
+    ];
+
+    const csvRows = [headers.join(',')];
+
+    const escapeCSV = (str: string | number | undefined | null) => {
+        if (str === undefined || str === null) return '';
+        const s = String(str);
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+            return `"${s.replace(/"/g, '""')}"`; // Correctly escape double quotes
+        }
+        return s;
+    };
+
+    ordersToExport.forEach(order => {
+        (order.items || []).forEach(item => {
+            const row = [
+                escapeCSV(order.id),
+                escapeCSV(order.date),
+                escapeCSV(order.status),
+                escapeCSV(order.country),
+                escapeCSV(order.countryCode),
+                escapeCSV(order.trackingNumber),
+                escapeCSV(order.customer.name),
+                escapeCSV(order.customer.address),
+                escapeCSV(order.customer.phone),
+                escapeCSV(order.note),
+                escapeCSV(item.productId),
+                escapeCSV(item.name),
+                escapeCSV(item.quantity),
+                escapeCSV(item.size),
+                escapeCSV(item.customization),
+                escapeCSV(item.version),
+                escapeCSV(item.thumbnailUrl)
+            ].join(',');
+            csvRows.push(row);
+        });
+    });
+
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    const date = new Date().toISOString().split('T')[0];
+    link.setAttribute('download', `pending_orders_${activeFilter}_${date}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Export Successful", description: `${ordersToExport.length} pending orders have been exported.` });
+  };
+
   if (pageLoading || isUserLoading) return <div className="flex h-[400px] w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!user) return <div className="text-center"><h1 className="font-headline text-2xl font-bold">Access Denied</h1><p>Please log in.</p></div>;
 
@@ -148,7 +213,6 @@ export default function MasterShopifyOrdersPage() {
     ES: orders.filter(o => o.countryCode === 'ES' && o.status === 'Pending Production').length,
   };
 
-  const filteredOrders = activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter);
   const pendingOrders = filteredOrders.filter(o => o.status === 'Pending Production');
   const shippedOrders = filteredOrders.filter(o => o.status === 'Shipped');
 
@@ -268,6 +332,12 @@ export default function MasterShopifyOrdersPage() {
             <span className="ml-2">Spain</span>
             {activeFilter !== 'ES' && pendingCounts.ES > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ES}</span>}
           </Button>
+          <div className="ml-auto">
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar Pendentes
+            </Button>
+          </div>
         </div>
       
         {!pageLoading && orders.length === 0 && (
