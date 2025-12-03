@@ -97,12 +97,12 @@ export default function DashboardSidebar() {
                 <Avatar className="size-8">
                   <AvatarImage src={user?.photoURL ?? undefined} />
                   <AvatarFallback>
-                    {user?.email?.charAt(0).toUpperCase()}
+                    {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start truncate">
                   <span className="max-w-full truncate text-sm font-medium">
-                    {user?.email}
+                    {user?.displayName || user?.email}
                   </span>
                   <span className="text-xs text-muted-foreground">{role}</span>
                 </div>
@@ -113,7 +113,7 @@ export default function DashboardSidebar() {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">
-                  My Account
+                  {user?.displayName || "My Account"}
                 </p>
                 <p className="text-xs leading-none text-muted-foreground">
                   {user?.email}

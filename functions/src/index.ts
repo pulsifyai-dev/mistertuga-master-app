@@ -1,7 +1,7 @@
-import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
-import {initializeApp, getApps} from "firebase-admin/app";
-import {getFirestore} from "firebase-admin/firestore";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 // Initialize Firebase Admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -13,85 +13,86 @@ const db = getFirestore();
 /**
  * Cloud Function that triggers when an order is updated.
  *
- * It checks if a tracking number was newly added and, if so, sends the
- * complete order data to a configured webhook URL.
+ * Sends a webhook ONLY when trackingNumber changes.
  */
 export const sendTrackingWebhookOnOrderUpdate = onDocumentUpdated(
-  "orders/{countryCode}/orders/{orderId}",
+  {
+    document: "orders/{countryCode}/orders/{orderId}",
+    region: "us-central1",
+    timeoutSeconds: 15,
+    memory: "256MiB",
+  },
   async (event) => {
-    logger.info(`Processing update for order: ${event.params.orderId}`);
+    const orderId = event.params.orderId;
+
+    logger.info(`Processing update for order: ${orderId}`);
 
     if (!event.data) {
       logger.warn("No data associated with the event. Exiting function.");
       return;
     }
 
-    const dataBefore = event.data.before.data();
-    const dataAfter = event.data.after.data();
+    const before = event.data.before.data();
+    const after = event.data.after.data();
 
-    // Check if data is undefined (can happen on document deletion)
-    if (!dataBefore || !dataAfter) {
-      logger.info("Document data not available, likely a deletion. No webhook sent.");
+    if (!before || !after) {
+      logger.info("Document appears deleted; skipping.");
       return;
     }
-    
-    const trackingBefore = dataBefore.trackingNumber;
-    const trackingAfter = dataAfter.trackingNumber;
 
-    // Condition: Proceed only if tracking number was added (was empty, now has a value)
-    if (trackingAfter && !trackingBefore) {
-      logger.info(
-        `Tracking number added for order ${event.params.orderId}. ` +
-        `New tracking number: ${trackingAfter}. Preparing to send webhook.`
-      );
+    const trackingBefore = before.trackingNumber;
+    const trackingAfter = after.trackingNumber;
 
-      try {
-        // 1. Fetch the webhook URL from Firestore
-        const settingsDocRef = db.collection("settings").doc("tracking");
-        const settingsDoc = await settingsDocRef.get();
+    const webhookUrl = after.webhook;
 
-        if (!settingsDoc.exists || !settingsDoc.data()?.url) {
-          logger.error(
-            "Webhook sending failed: 'settings/tracking' document or " +
-            "'url' field not found."
-          );
-          return;
-        }
+    // ❗ This is the CORRECT behavior:
+    // Only proceed if tracking changed
+    if (trackingBefore === trackingAfter) {
+      logger.info("Tracking did not change. No webhook sent.");
+      return;
+    }
 
-        const webhookUrl = settingsDoc.data()?.url;
-        logger.info(`Webhook URL found: ${webhookUrl}`);
+    if (!trackingAfter) {
+      logger.info("Tracking removed or still empty. Skipping webhook.");
+      return;
+    }
 
-        // 2. Send the POST request using fetch
-        const response = await fetch(webhookUrl, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(dataAfter), // Send all updated order data
-        });
+    if (!webhookUrl) {
+      logger.error(`Order ${orderId} does not contain a 'webhook' field.`);
+      return;
+    }
 
-        if (response.ok) {
-          logger.info(
-            `Successfully sent webhook for order ${event.params.orderId} ` +
-            `to ${webhookUrl}. Status: ${response.status}`
-          );
-        } else {
-          const responseBody = await response.text();
-          logger.error(
-            `Failed to send webhook for order ${event.params.orderId}. ` +
-            `Status: ${response.status}. Body: ${responseBody}`
-          );
-        }
-      } catch (error) {
+    logger.info(
+      `Tracking changed for order ${orderId}. Sending webhook to: ${webhookUrl}`
+    );
+
+    try {
+      const payload = {
+        orderId,
+        trackingNumber: trackingAfter,
+        previousTracking: trackingBefore || null,
+        updatedAt: Date.now(),
+        ...after, // include all order data
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        logger.info(
+          `Webhook sent successfully for order ${orderId}. Status: ${response.status}`
+        );
+      } else {
+        const body = await response.text();
         logger.error(
-          `An unexpected error occurred while sending webhook for order ` +
-          `${event.params.orderId}:`,
-          error
+          `Webhook failed for ${orderId}. Status: ${response.status}. Body: ${body}`
         );
       }
-    } else {
-      logger.info(
-        "No new tracking number added. No webhook will be sent. " +
-        `(Before: '${trackingBefore}', After: '${trackingAfter}')`
-      );
+    } catch (err) {
+      logger.error(`Unexpected error sending webhook for ${orderId}:`, err);
     }
   }
 );

@@ -10,14 +10,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { updateProfile, updatePassword } from 'firebase/auth';
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const { firestore } = useFirebase();
+  const { firestore, auth } = useFirebase();
   const { toast } = useToast();
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [name, setName] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setName(user.displayName || '');
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!firestore) return;
@@ -55,6 +66,48 @@ export default function SettingsPage() {
       setSaving(false);
     }
   };
+
+  const handleSaveProfile = async () => {
+    if (!user || !auth) return;
+    if (newPassword !== confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Passwords do not match.",
+      });
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      if (name !== user.displayName) {
+        await updateProfile(user, { displayName: name });
+        if (firestore) {
+            const userRef = doc(firestore, "users", user.uid);
+            await setDoc(userRef, { displayName: name }, { merge: true });
+        }
+      }
+
+      if (newPassword) {
+        await updatePassword(user, newPassword);
+      }
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to update profile: ${error.message}`,
+      });
+    } finally {
+      setSavingProfile(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  };
   
   return (
     <div className="flex flex-col gap-8">
@@ -76,19 +129,22 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" placeholder="Your name" />
+              <Input id="name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
              <div className="space-y-2">
               <Label htmlFor="new-password">New Password</Label>
-              <Input id="new-password" type="password" placeholder="••••••••" />
+              <Input id="new-password" type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
              <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm New Password</Label  >
-              <Input id="confirm-password" type="password" placeholder="••••••••" />
+              <Input id="confirm-password" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
             </div>
           </CardContent>
           <CardFooter>
-            <Button>Save Profile</Button>
+            <Button onClick={handleSaveProfile} disabled={savingProfile}>
+              {savingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Profile
+            </Button>
           </CardFooter>
         </Card>
 
