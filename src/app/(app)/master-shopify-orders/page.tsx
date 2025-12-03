@@ -144,88 +144,21 @@ export default function MasterShopifyOrdersPage() {
 
   const filteredOrders = activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter);
 
-  const handleExportCSV = (exportType: ExportType) => {
+  const handleExportPackingSheetPDF = async (mode: "pending" | "shipped" | "all") => {
     let ordersToExport: Order[];
-    switch (exportType) {
-      case 'pending':
-        ordersToExport = filteredOrders.filter(o => o.status === 'Pending Production');
-        break;
-      case 'shipped':
-        ordersToExport = filteredOrders.filter(o => o.status === 'Shipped');
-        break;
-      case 'all':
-        ordersToExport = filteredOrders;
-        break;
-    }
-
-    if (ordersToExport.length === 0) {
-        toast({ title: "No Orders to Export", description: `There are no ${exportType} orders in the current filter.` });
-        return;
-    }
-
-    const headers = [
-        'order_id', 'order_date', 'order_status', 'country', 'country_code', 'tracking_number',
-        'customer_name', 'customer_address', 'customer_phone', 'order_note', 'item_product_id', 'item_name',
-        'item_quantity', 'item_size', 'item_customization', 'item_version', 'item_thumbnail_url'
-    ];
-
-    const csvRows = [headers.join(',')];
-
-    const escapeCSV = (str: string | number | undefined | null) => {
-        if (str === undefined || str === null) return '';
-        const s = String(str);
-        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-            return `"${s.replace(/"/g, '""')}"`;
-        }
-        return s;
-    };
-
-    ordersToExport.forEach(order => {
-        (order.items || []).forEach(item => {
-            const row = [
-                escapeCSV(order.id),
-                escapeCSV(order.date),
-                escapeCSV(order.status),
-                escapeCSV(order.country),
-                escapeCSV(order.countryCode),
-                escapeCSV(order.trackingNumber),
-                escapeCSV(order.customer.name),
-                escapeCSV(order.customer.address),
-                escapeCSV(order.customer.phone),
-                escapeCSV(order.note),
-                escapeCSV(item.productId),
-                escapeCSV(item.name),
-                escapeCSV(item.quantity),
-                escapeCSV(item.size),
-                escapeCSV(item.customization),
-                escapeCSV(item.version),
-                escapeCSV(item.thumbnailUrl)
-            ].join(',');
-            csvRows.push(row);
-        });
-    });
-
-    const csvString = csvRows.join('\n');
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    const date = new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `${exportType}_orders_${activeFilter}_${date}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Export Successful", description: `${ordersToExport.length} ${exportType} orders have been exported.` });
-  };
   
-  const handleExportPackingSheetPDF = async () => {
-    const ordersToExport = filteredOrders;
+    if (mode === "pending") {
+      ordersToExport = filteredOrders.filter(o => o.status === "Pending Production");
+    } else if (mode === "shipped") {
+      ordersToExport = filteredOrders.filter(o => o.status === "Shipped");
+    } else {
+      ordersToExport = filteredOrders;
+    }
   
     if (ordersToExport.length === 0) {
       toast({
-        title: "No Orders to Export",
-        description: "There are no orders in the current filter.",
+        title: "No Orders",
+        description: "There are no orders to export in this category."
       });
       return;
     }
@@ -247,29 +180,23 @@ export default function MasterShopifyOrdersPage() {
         <h2 style="margin:0 0 15px 0; font-size:20px; font-weight:600;">
           Order ${order.id.replace(/^#/, "")} — ${order.date}
         </h2>
-      
-        <div style="
-          margin-bottom:20px; 
-          padding:12px; 
-          border:1px solid #ddd; 
-          background:#fafafa;
-          border-radius:6px;
-        ">
+  
+        <div style="margin-bottom:20px; padding:12px; border:1px solid #ddd; background:#fafafa; border-radius:6px;">
           <strong style="font-size:15px;">Customer</strong><br/>
           <div style="margin-top:4px; line-height:1.4;">
             ${order.customer.name}<br/>
             ${order.customer.address.replace(/\n/g, "<br/>")}<br/>
             <strong>Phone:</strong> ${order.customer.phone}
           </div>
-      
+  
           <div style="margin-top:10px;">
             <strong>Status:</strong> ${order.status}<br/>
             <strong>Tracking:</strong> ${order.trackingNumber || "N/A"}
           </div>
         </div>
-      
+  
         <h3 style="margin:20px 0 10px 0; font-size:16px;">Items</h3>
-      
+  
         <table style="width:100%; border-collapse: collapse; font-size:13px;">
           <thead>
             <tr style="background:#f0f0f0;">
@@ -282,98 +209,46 @@ export default function MasterShopifyOrdersPage() {
             </tr>
           </thead>
           <tbody>
-            ${order.items
-              .map(
-                item => `
-                <tr>
-                  <td style="border:1px solid #ccc; padding:8px; text-align:center;">
-                    <img 
-                      src="${item.thumbnailUrl}" 
-                      width="80" height="80" 
-                      style="object-fit:contain; border-radius:4px;"
-                    />
-                  </td>
-                  <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
-                  <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
-                  <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
-                  <td style="border:1px solid #ccc; padding:8px;">${item.version}</td>
-                  <td style="border:1px solid #ccc; padding:8px;">${item.customization}</td>
-                </tr>
-              `
-              )
-              .join("")}
+            ${order.items.map(item => `
+              <tr>
+                <td style="border:1px solid #ccc; padding:8px; text-align:center;">
+                  <img src="${item.thumbnailUrl}" width="80" height="80" style="object-fit:contain; border-radius:4px;" />
+                </td>
+                <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
+                <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
+                <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
+                <td style="border:1px solid #ccc; padding:8px;">${item.version}</td>
+                <td style="border:1px solid #ccc; padding:8px;">${item.customization}</td>
+              </tr>
+            `).join("")}
           </tbody>
         </table>
-      
-        ${
-          order.note
-            ? `
+  
+        ${order.note ? `
           <h3 style="margin:25px 0 8px 0; font-size:16px;">Notes</h3>
-          <div style="
-            white-space:pre-line; 
-            border:1px solid #ccc; 
-            padding:10px; 
-            border-radius:6px;
-            background:#fafafa;
-            font-size:13px;
-          ">
+          <div style="white-space:pre-line; border:1px solid #ccc; padding:10px; border-radius:6px; background:#fafafa; font-size:13px;">
             ${order.note}
           </div>
-        `
-            : ""
-        }
+        ` : ""}
       `;
   
       document.body.appendChild(container);
   
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-      });
-  
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL("image/png");
-      const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
   
       if (!firstPage) pdf.addPage();
       firstPage = false;
   
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-  
       document.body.removeChild(container);
     }
   
-    pdf.save(`packing_sheets_${new Date().toISOString().split("T")[0]}.pdf`);
-  };  
-
-  const handleExportPDF = async () => {
-    const pdf = new jsPDF("p", "mm", "a4");
-    const cards = document.querySelectorAll(".order-card");
-
-    let firstPage = true;
-
-    for (const card of cards) {
-      const canvas = await html2canvas(card as HTMLElement, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      if (!firstPage) pdf.addPage();
-      firstPage = false;
-
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-    }
-
-    pdf.save(`orders_${new Date().toISOString().split("T")[0]}.pdf`);
+    pdf.save(`${mode}_orders_${new Date().toISOString().split("T")[0]}.pdf`);
   };
+    
 
   if (pageLoading || isUserLoading) return <div className="flex h-[400px] w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!user) return <div className="text-center"><h1 className="font-headline text-2xl font-bold">Access Denied</h1><p>Please log in.</p></div>;
@@ -518,12 +393,16 @@ export default function MasterShopifyOrdersPage() {
                   <span className="sr-only">Export Orders</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleExportCSV('pending')}>Pending orders</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportCSV('shipped')}>Shipped orders</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportCSV('all')}>All orders</DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportPDF}>Export as PDF</DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportPackingSheetPDF}>Export Packing Sheets (PDF)</DropdownMenuItem>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => handleExportPackingSheetPDF("pending")}>
+                  Pending Orders (PDF)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPackingSheetPDF("shipped")}>
+                  Shipped Orders (PDF)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPackingSheetPDF("all")}>
+                  All Orders (PDF)
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
