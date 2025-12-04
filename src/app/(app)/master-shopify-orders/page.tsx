@@ -260,11 +260,18 @@ export default function MasterShopifyOrdersPage() {
             </tr>
           </thead>
           <tbody>
-            ${order.items.map(item => `
+            ${order.items
+              .filter(item => item && typeof item === "object")
+              .map(item => `
               <tr>
                 <td style="border:1px solid #ccc; padding:8px; text-align:center;">
-                  <img src="${item.thumbnailUrl}" width="80" height="80" style="object-fit:contain; border-radius:4px;" />
-                </td>
+                  <img src="${item?.thumbnailUrl && item.thumbnailUrl !== "null"
+                    ? item.thumbnailUrl
+                    : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A"}"
+                    width="80" height="80"
+                    style="object-fit:contain; border-radius:4px;"
+                  />
+                  </td>
                 <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
                 <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
                 <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
@@ -325,27 +332,49 @@ export default function MasterShopifyOrdersPage() {
         </div>
       </CardHeader>
       <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
-        <div className="md:col-span-2 flex flex-col gap-4">
-          {Array.isArray(order.items) && order.items.map((item, index) => (
-            <div key={index} className="flex items-start gap-4">
-              <div className="thumb-wrapper">
-                <img
-                  src={item.thumbnailUrl || `https://placehold.co/80x80/e2e8f0/64748b?text=N/A`}
-                  alt={item.name}
-                  className="thumb-image"
-                />
+      <div className="md:col-span-2 flex flex-col gap-4">
+        {(() => {
+          const safeItems = Array.isArray(order.items) ? order.items : [];
+
+          return safeItems
+            .filter((it) => it && typeof it === "object")
+            .map((item, index) => (
+              <div key={index} className="flex items-start gap-4">
+                <div className="thumb-wrapper">
+                  {(() => {
+                    const isValid =
+                      item?.thumbnailUrl &&
+                      item.thumbnailUrl !== "null" &&
+                      item.thumbnailUrl !== "undefined" &&
+                      item.thumbnailUrl.trim() !== "" &&
+                      item.thumbnailUrl.startsWith("http");
+
+                    const thumb = isValid
+                      ? item.thumbnailUrl
+                      : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
+
+                    return (
+                      <img
+                        src={thumb}
+                        alt={item.name || "Item"}
+                        className="thumb-image"
+                      />
+                    );
+                  })()}
+                </div>
+
+                <div className="text-sm">
+                  <p className="font-semibold">{item.name ?? "Unnamed Product"}</p>
+                  <p className="text-muted-foreground">ID: {item.productId ?? "—"}</p>
+                  <p className="text-muted-foreground">Customization: {item.customization ?? "—"}</p>
+                  <p className="text-muted-foreground">Size: {item.size ?? "—"}</p>
+                  <p className="text-muted-foreground">Qty: {item.quantity ?? 0}</p>
+                  <p className="text-muted-foreground">Version: {item.version ?? "—"}</p>
+                </div>
               </div>
-              <div className="text-sm">
-                <p className="font-semibold">{item.name}</p>
-                <p className="text-muted-foreground">ID: {item.productId}</p>
-                <p className="text-muted-foreground">Customization: {item.customization}</p>
-                <p className="text-muted-foreground">Size: {item.size}</p>
-                <p className="text-muted-foreground">Qty: {item.quantity}</p>
-                <p className="text-muted-foreground">Version: {item.version}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ));
+        })()}
+      </div>
         <div className="flex flex-col gap-4">
           <div className="relative bg-muted/50 p-3 rounded-lg text-sm space-y-2">
             <Button variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7" onClick={() => handleOpenEditModal(order)}>
