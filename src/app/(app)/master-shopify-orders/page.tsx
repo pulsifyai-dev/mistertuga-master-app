@@ -275,7 +275,7 @@ export default function MasterShopifyOrdersPage() {
                 <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
                 <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
                 <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
-                <td style="border:1px solid #ccc; padding:8px;">${item.version}</td>
+                <td style="border:1px solid #ccc; padding:8px;"><strong>${item.version === "Player Edition" ? `<strong>${item.version}</strong>` : item.version}</strong></td>
                 <td style="border:1px solid #ccc; padding:8px;">${item.customization}</td>
               </tr>
             `).join("")}
@@ -369,7 +369,7 @@ export default function MasterShopifyOrdersPage() {
                   <p className="text-muted-foreground">Customization: {item.customization ?? "—"}</p>
                   <p className="text-muted-foreground">Size: {item.size ?? "—"}</p>
                   <p className="text-muted-foreground">Qty: {item.quantity ?? 0}</p>
-                  <p className="text-muted-foreground">Version: {item.version ?? "—"}</p>
+                  <p className="text-muted-foreground">Version: {item.version === "Player Edition" ? <strong>{item.version}</strong> : item.version ?? "—"}</p>
                 </div>
               </div>
             ));
