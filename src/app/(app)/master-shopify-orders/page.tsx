@@ -81,6 +81,11 @@ export default function MasterShopifyOrdersPage() {
   
   // Overlay State
   const [isExporting, setIsExporting] = useState(false);
+  const [exportChunksInfo, setExportChunksInfo] = useState<{
+    totalChunks: number;
+    totalOrders: number;
+  } | null>(null);
+  const [showSplitNotice, setShowSplitNotice] = useState(false);
 
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [typedLoadingText, setTypedLoadingText] = useState("");
@@ -194,7 +199,9 @@ export default function MasterShopifyOrdersPage() {
       setLoadingMessageIndex(0);
       return;
     }
-  
+    // ⬅️ não escrever mensagens enquanto o aviso de split está ativo
+    if (showSplitNotice) return;
+
     const fullText = PDF_LOADING_MESSAGES[loadingMessageIndex] ?? "";
     const typeSpeed = 40;   // ms entre caracteres
     const holdMs = 2000;    // ms com a frase COMPLETA parada
@@ -230,6 +237,29 @@ export default function MasterShopifyOrdersPage() {
       cancelled = true;
     };
   }, [isExporting, loadingMessageIndex]);
+
+  useEffect(() => {
+    if (!isExporting) {
+      setShowSplitNotice(false);
+      return;
+    }
+  
+    // só mostramos o aviso se houver split
+    if (!exportChunksInfo || exportChunksInfo.totalChunks <= 1) {
+      setShowSplitNotice(false);
+      return;
+    }
+  
+    // mostrar aviso em grande durante 1 segundo
+    setShowSplitNotice(true);
+    const t = window.setTimeout(() => {
+      setShowSplitNotice(false);
+    }, 3000); // 3s
+  
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [isExporting, exportChunksInfo?.totalChunks]);
 
   const handleOpenEditModal = (order: Order) => {
     setEditingOrder(order);
@@ -363,13 +393,19 @@ export default function MasterShopifyOrdersPage() {
       }
   
       const total = ordersToExport.length;
-  
+
       // dividir em batches
       const chunks: Order[][] = [];
       for (let i = 0; i < total; i += MAX_ORDERS_PER_PDF) {
         chunks.push(ordersToExport.slice(i, i + MAX_ORDERS_PER_PDF));
       }
-  
+      
+      // guardar info para o overlay
+      setExportChunksInfo({
+        totalChunks: chunks.length,
+        totalOrders: total,
+      });
+
       const todayStr = new Date().toISOString().split("T")[0];
       const baseName =
         orderTab === "pending" ? "pending_orders" : "shipped_orders";
@@ -642,7 +678,9 @@ export default function MasterShopifyOrdersPage() {
       });
     } finally {
       setIsExporting(false);
-    }
+      setExportChunksInfo(null);
+      setShowSplitNotice(false);    
+    }   
   };
     
 
@@ -830,15 +868,32 @@ export default function MasterShopifyOrdersPage() {
   return (
     <>
       {isExporting && (
-        <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-3 px-4 text-center">
+        <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-4 px-4 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-white" />
-          <p className="text-white text-lg font-semibold flex items-center justify-center">
-            {typedLoadingText || PDF_LOADING_MESSAGES[loadingMessageIndex]}
-            <span className="ml-1 inline-block w-[8px] h-[18px] bg-white/80 animate-pulse rounded-[1px]" />
-          </p>
-          <p className="text-white/70 text-xs">
-            This might take a few seconds, don&apos;t refresh.
-          </p>
+
+          {showSplitNotice && exportChunksInfo && exportChunksInfo.totalChunks > 1 ? (
+            <>
+              {/* AVISO GRANDE – ÚNICA MENSAGEM PRINCIPAL DURANTE 1s */}
+              <p className="text-white text-xl font-bold">
+                This export will generate {exportChunksInfo.totalChunks} PDF files.
+              </p>
+              <p className="text-white/80 text-sm">
+                Up to {MAX_ORDERS_PER_PDF} orders per file.
+              </p>
+            </>
+          ) : (
+            <>
+              {/* MODO NORMAL: TYPEWRITER + INFO EXTRA */}
+              <p className="text-white text-lg font-semibold flex items-center justify-center">
+                {typedLoadingText || PDF_LOADING_MESSAGES[loadingMessageIndex]}
+                <span className="ml-1 inline-block w-[8px] h-[18px] bg-white/80 animate-pulse rounded-[1px]" />
+              </p>
+
+              <p className="text-white/70 text-xs">
+                This might take a few seconds, don&apos;t refresh.
+              </p>
+            </>
+          )}
         </div>
       )}
 
