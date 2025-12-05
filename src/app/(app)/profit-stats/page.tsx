@@ -52,40 +52,38 @@ const dummyProfitDoc: ProfitStatsDoc = {
       label: 'Meta Ads (Facebook / Instagram)',
       base: 12500,
       extra: 0,
+      color: '#a855f7',
+      recurring: true,
     },
     tiktokAds: {
       label: 'TikTok Ads',
       base: 4200,
       extra: 0,
+      color: '#ec4899',
+      recurring: true,
     },
     klaviyo: {
       label: 'Klaviyo (Email / SMS)',
       base: 780,
       extra: 0,
+      color: '#22c55e',
+      recurring: true,
     },
     collaborators: {
       label: 'Colaboradores / Equipa',
       base: 13500,
       extra: 0,
+      color: '#38bdf8',
+      recurring: true,
     },
     variableCosts: {
       label: 'Custos Variáveis (embalagens, portes, etc.)',
       base: 8900,
       extra: 0,
+      color: '#f97316',
+      recurring: true,
     },
   },
-  dailyNetProfit: [
-    { date: '2025-12-01', net: 1200 },
-    { date: '2025-12-02', net: 1450 },
-    { date: '2025-12-03', net: 980 },
-    { date: '2025-12-04', net: 1670 },
-    { date: '2025-12-05', net: 1530 },
-    { date: '2025-12-06', net: 1810 },
-    { date: '2025-12-07', net: 1600 },
-    { date: '2025-12-08', net: 1950 },
-    { date: '2025-12-09', net: 1890 },
-    { date: '2025-12-10', net: 2100 },
-  ],
 };
 
 const expenseAccentColors: Record<ExpenseKey, string> = {
@@ -363,7 +361,7 @@ export default function ProfitStatsPage() {
       {/* CARD PRINCIPAL NET PROFIT + GRÁFICO */}
       <Card
           className="relative overflow-hidden rounded-2xl border border-white/8 bg-black/40
-             shadow-[0_24px_55px_rgba(0,0,0,0.85)]
+             shadow-[0_14px_35px_rgba(0,0,0,0.55)]
              after:pointer-events-none after:absolute after:inset-x-8 after:-bottom-6
              after:h-8 after:rounded-full after:bg-purple-500/25 after:blur-2" >      
           <CardHeader className="flex flex-row items-start justify-between gap-4 pb-1">
@@ -419,7 +417,7 @@ export default function ProfitStatsPage() {
               key={key}
               className="flex flex-col gap-2 rounded-2xl px-3.5 py-3
               md:flex-row md:items-center md:justify-between
-              border bg-black/10 border-white/15
+              border bg-black/5 border-white/15
               backdrop-blur-md shadow-[0_18px_30px_rgba(0,0,0,0.25)]"              
               style={{
                 borderLeftWidth: 3,
