@@ -741,8 +741,9 @@ export default function MasterShopifyOrdersPage() {
             <span>{order.id}</span>
           </div>
   
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <span className="text-lg">🕒</span> {order.date}
+          <div className="flex items-center gap-1 text-[12px] text-muted-foreground md:justify-end">
+            <span className="text-lg">🕒</span>
+            {order.date}
           </div>
         </CardHeader>
   
@@ -999,8 +1000,7 @@ export default function MasterShopifyOrdersPage() {
         </div>
 
 {/* FILTER BAR – torna-se a “barra premium” */}
-<div className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-2xl bg-black/40 border border-white/5 px-3 py-2 backdrop-blur-md">
-        {/* Países */}
+<div className="sticky top-12 z-20 flex flex-col gap-3 rounded-2xl bg-black/40 border border-white/5 px-3 py-3 backdrop-blur-md md:flex-row md:items-center">        {/* Países */}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={activeFilter === 'ALL' ? 'default' : 'outline'}
@@ -1238,8 +1238,8 @@ export default function MasterShopifyOrdersPage() {
         )}
 
         {/* Tabs como segmented control */}
-        <div className="mt-6">
-          <div className="inline-flex items-center rounded-full bg-black/40 p-1 border border-white/5">
+        <div className="mt-2 flex items-center gap-2 md:mt-0 md:ml-auto">
+        <div className="inline-flex items-center rounded-full bg-black/40 p-1 border border-white/5">
             <Button
               variant={orderTab === "pending" ? "default" : "ghost"}
               size="sm"
