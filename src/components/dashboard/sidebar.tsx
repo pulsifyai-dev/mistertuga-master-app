@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   SidebarHeader,
@@ -15,6 +16,14 @@ import {
   AlertCircle,
   Settings,
 } from "lucide-react";
+
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 const sidebarItems = [
   {
@@ -33,15 +42,21 @@ const sidebarItems = [
     icon: AlertCircle,
   },
 ];
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+
 export default function DashboardSidebar() {
   const pathname = usePathname();
+
+  // para o botão de settings ficar activo quando estás em /settings
+  const isSettingsActive = pathname === "/settings";
+
+  // classe base para TODOS os botões
+  const baseButtonClasses =
+    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors";
+
+  const activeButtonClasses =
+    "bg-neutral-900/80 text-white border border-white/15 shadow-sm";
+  const inactiveButtonClasses =
+    "text-muted-foreground hover:bg-white/5";
 
   return (
     <>
@@ -59,29 +74,28 @@ export default function DashboardSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-3">
+      {/* px-4 para alinhar com o footer e garantir o mesmo espaçamento lateral do highlight */}
+      <SidebarContent className="px-4 py-3">
         <SidebarMenu>
           {sidebarItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + "/");
 
-            const baseClasses =
-              "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors";
-            const activeClasses = isActive
-              ? " bg-white text-black shadow-sm"
-              : " text-muted-foreground hover:bg-white/5";
-
             return (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  className={baseClasses + activeClasses}
+                  className={
+                    baseButtonClasses +
+                    " " +
+                    (isActive ? activeButtonClasses : inactiveButtonClasses)
+                  }
                 >
-                  <a href={item.href}>
+                  <Link href={item.href}>
                     <Icon className="h-4 w-4" />
                     <span className="truncate">{item.label}</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );
@@ -94,12 +108,16 @@ export default function DashboardSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-white/5"
+              className={
+                baseButtonClasses +
+                " " +
+                (isSettingsActive ? activeButtonClasses : inactiveButtonClasses)
+              }
             >
-              <button type="button">
+              <Link href="/settings">
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>
-              </button>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
