@@ -821,14 +821,14 @@ export default function MasterShopifyOrdersPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-white/10"
+                  className="h-7 w-7 bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
                   type="button"
                   onClick={() => toggleOrderDetails(order.id)}
                 >
                   {isExpanded ? (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    <EyeOff className="h-4 w-4" />
                   ) : (
-                    <Eye className="h-4 w-4 text-muted-foreground" />
+                    <Eye className="h-4 w-4" />
                   )}
                 </Button>
               </div>
@@ -846,7 +846,7 @@ export default function MasterShopifyOrdersPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    className="h-6 w-6 bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
                     type="button"
                     onClick={() => handleResetTrackingNumber(order)}
                   >
@@ -868,7 +868,7 @@ export default function MasterShopifyOrdersPage() {
                   <Button
                     onClick={() => handleSubmitTrackingNumber(order)}
                     disabled={isPending}
-                    className="h-8 text-xs"
+                    className="h-8 text-xs bg-purple-600 text-white hover:bg-purple-500 active:bg-purple-700 active:scale-[0.98]"
                     type="button"
                   >
                     {isPending && (
@@ -897,7 +897,7 @@ export default function MasterShopifyOrdersPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 hover:bg-purple-500/20"
+                      className="h-7 w-7 bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
                       type="button"
                       onClick={() => handleOpenEditModal(order)}
                     >
@@ -990,7 +990,7 @@ export default function MasterShopifyOrdersPage() {
               <FormField control={form.control} name="note" render={({ field }) => <FormItem><FormLabel>Note</FormLabel><FormControl><Textarea {...field} placeholder="Add a manual note for this order..." /></FormControl><FormMessage /></FormItem>} />
               <DialogFooter className="pt-4">
                 <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-                <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save Changes</Button>
+                <Button type="submit" disabled={isPending} className="bg-purple-600 text-white hover:bg-purple-500 active:bg-purple-700 active:scale-[0.98]">{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save Changes</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -1015,7 +1015,7 @@ export default function MasterShopifyOrdersPage() {
             <Button
               variant={activeFilter === 'ALL' ? 'default' : 'outline'}
               onClick={() => setActiveFilter('ALL')}
-              className="h-8 rounded-full text-xs px-3 border-white/10"
+              className="h-8 rounded-full text-xs px-3 border-white/10 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               ALL
               {pendingCounts.ALL > 0 && (
@@ -1028,7 +1028,7 @@ export default function MasterShopifyOrdersPage() {
             <Button
               variant={activeFilter === 'PT' ? 'default' : 'outline'}
               onClick={() => setActiveFilter('PT')}
-              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               <FlagPT />
               <span>Portugal</span>
@@ -1042,7 +1042,7 @@ export default function MasterShopifyOrdersPage() {
             <Button
               variant={activeFilter === 'DE' ? 'default' : 'outline'}
               onClick={() => setActiveFilter('DE')}
-              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               <FlagDE />
               <span>Germany</span>
@@ -1056,7 +1056,7 @@ export default function MasterShopifyOrdersPage() {
             <Button
               variant={activeFilter === 'ES' ? 'default' : 'outline'}
               onClick={() => setActiveFilter('ES')}
-              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               <FlagES />
               <span>Spain</span>
@@ -1106,9 +1106,9 @@ export default function MasterShopifyOrdersPage() {
                       }
                       setIsSearchExpanded((prev) => !prev);
                     }}
-                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-purple-500/20"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
                   >
-                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <Search className="h-4 w-4" />
                     <span className="sr-only">Search orders</span>
                   </button>
                 </div>
@@ -1126,7 +1126,7 @@ export default function MasterShopifyOrdersPage() {
                           <button
                             key={order.id}
                             type="button"
-                            className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 flex items-center justify-between gap-2"
+                            className="w-full text-left px-3 py-2 text-xs bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30 flex items-center justify-between gap-2"
                             onClick={() => {
                               const el = document.getElementById(`order-${order.id}`);
                               if (el) {
@@ -1162,7 +1162,7 @@ export default function MasterShopifyOrdersPage() {
                 size="icon"
                 onClick={handleExportPackingSheetPDF}
                 disabled={isExporting}
-                className="hover:bg-purple-500/50"
+                className="bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
               >
                 <Download className="h-4 w-4" />
                 <span className="sr-only">Export Orders</span>
@@ -1174,7 +1174,7 @@ export default function MasterShopifyOrdersPage() {
               <PopoverTrigger asChild>
                 <Button
                   variant={isFilterActive ? "default" : "outline"}
-                  className="h-8 rounded-full border-white/10 text-xs flex items-center gap-2"
+                  className="h-8 rounded-full border-white/10 text-xs flex items-center gap-2 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
                 >
                   <CalendarIcon className="h-3.5 w-3.5" />
                   {isFilterActive ? (
@@ -1333,7 +1333,7 @@ export default function MasterShopifyOrdersPage() {
               className={`h-8 rounded-full px-4 text-xs transition-none ${
                 orderTab === "pending"
                   ? "bg-white text-black shadow-sm"
-                  : "text-muted-foreground hover:bg-white/5"
+                  : "text-muted-foreground hover:bg-purple-500/20 hover:text-white"
               }`}
               onClick={() => {
                 setOrderTab("pending");
@@ -1349,7 +1349,7 @@ export default function MasterShopifyOrdersPage() {
               className={`h-8 rounded-full px-4 text-xs transition-none ${
                 orderTab === "shipped"
                   ? "bg-white text-black shadow-sm"
-                  : "text-muted-foreground hover:bg-white/5"
+                  : "text-muted-foreground hover:bg-purple-500/20 hover:text-white"
               }`}
               onClick={() => {
                 setOrderTab("shipped");
@@ -1383,6 +1383,7 @@ export default function MasterShopifyOrdersPage() {
                 variant="outline" 
                 disabled={page === 1}
                 onClick={() => setPage(page - 1)}
+                className="hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
               >
                 Previous
               </Button>
@@ -1395,6 +1396,7 @@ export default function MasterShopifyOrdersPage() {
                 variant="outline" 
                 disabled={page === totalPages}
                 onClick={() => setPage(page + 1)}
+                className="hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
               >
                 Next
               </Button>
@@ -1409,7 +1411,7 @@ export default function MasterShopifyOrdersPage() {
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           className="fixed bottom-16 right-6 z-[9999] rounded-full bg-white/10 
                     border border-white/30 backdrop-blur-md text-white 
-                    shadow-lg p-3 hover:bg-white/20 transition"
+                    shadow-lg p-3 hover:bg-purple-500/20 active:bg-purple-500/30 transition"
         >
           <ChevronUp className="h-5 w-5" />
         </button>

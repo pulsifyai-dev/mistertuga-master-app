@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { ArrowUpRight, ArrowDownRight, Plus, Check, X as XIcon } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Plus, Check, X as XIcon, AlertTriangle } from 'lucide-react';
 
 import {
   AreaChart,
@@ -49,7 +49,7 @@ interface ProfitStatsDoc {
 
 // ----- Dummy inicial (grava se não existir) -----
 const dummyProfitDoc: ProfitStatsDoc = {
-  periodLabel: 'Últimos 30 dias',
+  periodLabel: 'Last 30 dias',
   currency: 'EUR',
   totalRevenue: 48237.5,
   expenses: {
@@ -75,14 +75,14 @@ const dummyProfitDoc: ProfitStatsDoc = {
       recurring: true,
     },
     collaborators: {
-      label: 'Colaboradores / Equipa',
+      label: 'collaborators / Team',
       base: 13500,
       extra: 0,
       color: '#38bdf8',
       recurring: true,
     },
     variableCosts: {
-      label: 'Custos Variáveis (embalagens, portes, etc.)',
+      label: 'Variable Costs (packaging, shipping, etc.)',
       base: 8900,
       extra: 0,
       color: '#f97316',
@@ -153,7 +153,7 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
   if (!Array.isArray(points) || points.length === 0) {
     return (
       <div className="flex h-24 items-center justify-center text-[11px] text-muted-foreground">
-        Sem dados diários de net profit.
+        No avaiable daily Net Profit data.
       </div>
     );
   }
@@ -319,7 +319,7 @@ export default function ProfitStatsPage() {
   if (loading || !data) {
     return (
       <div className="flex h-[300px] w-full items-center justify-center text-sm text-muted-foreground">
-        A carregar métricas de lucro…
+        Loading profit metrics...
       </div>
     );
   }
@@ -435,13 +435,23 @@ export default function ProfitStatsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* HEADER (minimal, igual vibe ao Shopify Orders) */}
-      <div className="pt-1">
-        <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
-          Profit Stats
-        </h1>
+            {/* HEADER (minimal, igual vibe ao Shopify Orders) */}
+            <div className="pt-1">
+        <div className="flex items-center gap-3">
+          <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
+            Profit Stats
+          </h1>
+
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/60 bg-yellow-400/10 px-2.5 py-0.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" />
+            <span className="text-[11px] font-medium tracking-wide text-yellow-200">
+              UNDER CONSTRUCTION
+            </span>
+          </div>
+        </div>
+
         <p className="text-muted-foreground max-w-xl text-sm mt-1">
-          Snapshot financeiro da MisterTuga · {periodLabel}
+          Financial snapshot from MisterTuga · {periodLabel}
         </p>
       </div>
 
@@ -465,7 +475,7 @@ export default function ProfitStatsPage() {
 
             <div className="flex gap-4 text-[11px] text-muted-foreground">
               <span>{formatCurrency(totalRevenue, currency)} revenue</span>
-              <span>{formatCurrency(totalExpenses, currency)} despesas</span>
+              <span>{formatCurrency(totalExpenses, currency)} expenses</span>
             </div>
           </div>
 
@@ -503,72 +513,72 @@ export default function ProfitStatsPage() {
 
           return (
             <Card
-              key={key}
-              className="flex flex-col gap-2 rounded-2xl px-3.5 py-3
-              md:flex-row md:items-center md:justify-between
-              border bg-black/5 border-white/15
-              backdrop-blur-md shadow-[0_18px_30px_rgba(0,0,0,0.25)]"              
-              style={{
-                borderLeftWidth: 3,
-                borderLeftColor: expenseAccentColors[key],
-              }}
-            >
-              <CardContent className="flex items-center justify-between gap-3 p-3.5">
-                <div className="flex flex-col">
-                <span className="text-sm font-medium">{item.label}</span>                  
+            key={key}
+            className="rounded-2xl border bg-black/5 border-white/15
+                       backdrop-blur-md shadow-[0_18px_30px_rgba(0,0,0,0.25)]"
+            style={{
+              borderLeftWidth: 3,
+              borderLeftColor: expenseAccentColors[key],
+            }}
+          >
+            <CardContent className="flex w-full items-center gap-3 p-3.5">
+              {/* Info da despesa (esquerda) */}
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">{item.label}</span>
                 <span className="text-xs text-muted-foreground">
-                    {formatCurrency(total, currency)}
-                  </span>
+                  {formatCurrency(total, currency)}
+                </span>
+              </div>
+    
+              {/* Zona direita: botão / input – sempre encostado à direita */}
+              {isEditing ? (
+                <div className="ml-auto flex items-center gap-1">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={tempExtra}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+    
+                      if (raw === '') {
+                        setTempExtra('');
+                        return;
+                      }
+    
+                      // apenas dígitos e um separador decimal
+                      const normalized = raw.replace(/,/g, '.');
+                      const isValid = /^\d*\.?\d*$/.test(normalized);
+    
+                      if (isValid) {
+                        setTempExtra(raw);
+                      }
+                    }}
+                    className="h-8 w-24 text-xs bg-black/60"
+                    placeholder="+0,00"
+                    autoFocus
+                  />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-8 w-8"
+                    disabled={savingExtra}
+                    type="button"
+                    onClick={() => handleSaveExtra(key)}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    type="button"
+                    onClick={handleCancelEditExtra}
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </Button>
                 </div>
-
-                {/* Zona direita super minimal: botão + ou modo edição */}
-                {isEditing ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={tempExtra}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-
-                        if (raw === '') {
-                          setTempExtra('');
-                          return;
-                        }
-
-                        // apenas dígitos e um separador decimal
-                        const normalized = raw.replace(/,/g, '.');
-                        const isValid = /^\d*\.?\d*$/.test(normalized);
-
-                        if (isValid) {
-                          setTempExtra(raw);
-                        }
-                      }}
-                      className="h-8 w-24 text-xs bg-black/60"
-                      placeholder="+0,00"
-                      autoFocus
-                    />
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-8 w-8"
-                      disabled={savingExtra}
-                      type="button"
-                      onClick={() => handleSaveExtra(key)}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      type="button"
-                      onClick={handleCancelEditExtra}
-                    >
-                      <XIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
+              ) : (
+                <div className="ml-auto">
                   <Button
                     type="button"
                     size="icon"
@@ -578,9 +588,10 @@ export default function ProfitStatsPage() {
                   >
                     <Plus className="h-4 w-4 text-muted-foreground" />
                   </Button>
-                )}
-              </CardContent>
-            </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
           );
         })}
       </div>
