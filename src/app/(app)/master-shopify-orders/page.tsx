@@ -52,6 +52,8 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
 
 const PDF_LOADING_MESSAGES = [
   "Making your PDF look pretty...",
@@ -77,6 +79,9 @@ export default function MasterShopifyOrdersPage() {
   // Overlay State
   const [isExporting, setIsExporting] = useState(false);
 
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [typedLoadingText, setTypedLoadingText] = useState("");
+
   // Pagination
   const ITEMS_PER_PAGE = 10;
   const [page, setPage] = useState(1);
@@ -85,16 +90,22 @@ export default function MasterShopifyOrdersPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [trackingNumbers, setTrackingNumbers] = useState<{ [key: string]: string }>({});
-  
-  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Date Filter State
-  const [startDate, setStartDate] = useState<{ day: string; month: string }>({ day: '', month: '' });
-  const [endDate, setEndDate] = useState<{ day: string; month: string }>({ day: '', month: '' });
+  const [startDate, setStartDate] = useState<{ day: string; month: string; year: string }>({
+    day: '',
+    month: '',
+    year: '',
+  });
+  const [endDate, setEndDate] = useState<{ day: string; month: string; year: string }>({
+    day: '',
+    month: '',
+    year: '',
+  });
   const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
 
   const { toast } = useToast();
@@ -102,19 +113,6 @@ export default function MasterShopifyOrdersPage() {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  useEffect(() => {
-    if (!isExporting) return;
-  
-    // começa sempre na primeira mensagem
-    setLoadingMessageIndex(0);
-  
-    const interval = setInterval(() => {
-      setLoadingMessageIndex((prev) => (prev + 1) % PDF_LOADING_MESSAGES.length);
-    }, 1200); // troca de mensagem a cada 1.2s
-  
-    return () => clearInterval(interval);
-  }, [isExporting]);
 
   useEffect(() => {
     if (editingOrder) {
@@ -186,6 +184,50 @@ export default function MasterShopifyOrdersPage() {
     return () => unsubscribe();
   }, [user, isUserLoading, firestore]);
 
+  useEffect(() => {
+    if (!isExporting) {
+      // reset quando termina a exportação
+      setTypedLoadingText("");
+      setLoadingMessageIndex(0);
+      return;
+    }
+  
+    const fullText = PDF_LOADING_MESSAGES[loadingMessageIndex] ?? "";
+    const typeSpeed = 40;   // ms entre caracteres
+    const holdMs = 2000;    // ms com a frase COMPLETA parada
+  
+    let charIndex = 0;
+    let cancelled = false;
+  
+    // começar nova mensagem
+    setTypedLoadingText("");
+  
+    const typeNextChar = () => {
+      if (cancelled) return;
+  
+      if (charIndex < fullText.length) {
+        charIndex += 1;
+        setTypedLoadingText(fullText.slice(0, charIndex));
+        window.setTimeout(typeNextChar, typeSpeed);
+      } else {
+        // terminou de escrever → manter a frase parada durante holdMs
+        window.setTimeout(() => {
+          if (cancelled) return;
+          setLoadingMessageIndex((prev) =>
+            (prev + 1) % PDF_LOADING_MESSAGES.length
+          );
+        }, holdMs);
+      }
+    };
+  
+    typeNextChar();
+  
+    return () => {
+      // marca como cancelado para não correr timeouts após unmount / mudança
+      cancelled = true;
+    };
+  }, [isExporting, loadingMessageIndex]);
+
   const handleOpenEditModal = (order: Order) => {
     setEditingOrder(order);
     setIsEditModalOpen(true);
@@ -234,47 +276,52 @@ export default function MasterShopifyOrdersPage() {
   const handleTrackingNumberChange = (orderId: string, value: string) => setTrackingNumbers(prev => ({ ...prev, [orderId]: value }));
 
   const filterOrdersByDate = (ordersToFilter: Order[]) => {
-    if (!startDate.day || !startDate.month || !endDate.day || !endDate.month) return ordersToFilter;
-
-    // Construct date strings for comparison (MM-DD format is enough since we ignore year mostly, but let's assume current year for simplicity or handle strictly month/day)
-    // Actually, orders have 'YYYY-MM-DD'. Let's parse that.
-    
-    // Convert selected month name to index (0-11) + 1 => string padded
+    if (
+      !startDate.day || !startDate.month || !startDate.year ||
+      !endDate.day || !endDate.month || !endDate.year
+    ) {
+      return ordersToFilter;
+    }
+  
     const startMonthIndex = MONTHS.indexOf(startDate.month) + 1;
     const endMonthIndex = MONTHS.indexOf(endDate.month) + 1;
-
-    const startMonthStr = pad(startMonthIndex);
-    const endMonthStr = pad(endMonthIndex);
-    const startDayStr = pad(parseInt(startDate.day));
-    const endDayStr = pad(parseInt(endDate.day));
-
-    // We will compare strings "MM-DD" for filtering across any year, or assume current year.
-    // The prompt implies a simple date filter. Let's assume the user wants to filter within the current year or just by absolute date range if years were involved.
-    // However, the UI requested is just Day/Month. This usually implies a "this year" context or "recurring date".
-    // Given the order dates are full YYYY-MM-DD strings.
-    // Let's assume the filter applies to the date regardless of year, OR (better) assume the current year for the filter bounds if year isn't selected.
-    // But since year isn't in the filter UI, let's just filter by comparing the "MM-DD" part of the strings. 
-    // Wait, that might be weird if range wraps around year end.
-    // Let's stick to standard string comparison on "MM-DD" which works for within-year ranges.
-    
-    const startCompare = `${startMonthStr}-${startDayStr}`;
-    const endCompare = `${endMonthStr}-${endDayStr}`;
-
-    return ordersToFilter.filter(o => {
-      const [_, m, d] = o.date.split('-');
-      const orderCompare = `${m}-${d}`;
-      return orderCompare >= startCompare && orderCompare <= endCompare;
+  
+    if (startMonthIndex <= 0 || endMonthIndex <= 0) {
+      return ordersToFilter;
+    }
+  
+    const startYearStr = startDate.year;
+    const endYearStr = endDate.year;
+  
+    const startKey = `${startYearStr}-${pad(startMonthIndex)}-${pad(parseInt(startDate.day, 10))}`;
+    const endKey = `${endYearStr}-${pad(endMonthIndex)}-${pad(parseInt(endDate.day, 10))}`;
+  
+    const normalizeOrderDate = (dateStr: string) => {
+      // "2025-12-04 | 12:30" → "2025-12-04"
+      const [datePart] = dateStr.split('|');
+      const safe = datePart.trim();
+      const parts = safe.split('-');
+      if (parts.length !== 3) return null;
+      const [y, m, d] = parts;
+      return `${y}-${m}-${pad(parseInt(d, 10))}`;
+    };
+  
+    return ordersToFilter.filter((o) => {
+      const orderKey = normalizeOrderDate(o.date);
+      if (!orderKey) return false;
+  
+      // INCLUSIVO: inclui o próprio dia de início e fim
+      return orderKey >= startKey && orderKey <= endKey;
     });
   };
 
   const filteredOrders = filterOrdersByDate(activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter));
 
-  const handleExportPackingSheetPDF = async (
-    mode: "pending" | "shipped" | "all"
-  ) => {
+  const handleExportPackingSheetPDF = async () => {
+    setIsExporting(true);
+
     // Cache apenas para este export
     const imageCache: Record<string, string> = {};
-  
     const loadImageAsDataURL = async (url: string): Promise<string> => {
       if (imageCache[url]) return imageCache[url];
   
@@ -301,23 +348,14 @@ export default function MasterShopifyOrdersPage() {
     setIsExporting(true);
   
     try {
-      // 1) Filtrar encomendas
-      let ordersToExport: Order[];
-  
-      if (mode === "pending") {
-        ordersToExport = filteredOrders.filter(
-          (o) => o.status === "Pending Production"
-        );
-      } else if (mode === "shipped") {
-        ordersToExport = filteredOrders.filter((o) => o.status === "Shipped");
-      } else {
-        ordersToExport = filteredOrders;
-      }
+      // usa sempre os filtros já aplicados (country + date) + tab atual
+      const ordersToExport =
+        orderTab === "pending" ? pendingOrders : shippedOrders; // estes já vêm de filteredOrders
   
       if (ordersToExport.length === 0) {
         toast({
           title: "No Orders",
-          description: "There are no orders to export in this category.",
+          description: "There are no orders to export with the current filters.",
         });
         return;
       }
@@ -575,7 +613,9 @@ export default function MasterShopifyOrdersPage() {
         }
       }
   
-      pdf.save(`${mode}_orders_${new Date().toISOString().split("T")[0]}.pdf`);
+      pdf.save(
+        `${orderTab}_orders_${new Date().toISOString().split("T")[0]}.pdf`
+      );
     } catch (error) {
       console.error("Erro ao gerar PDF:", error);
       toast({
@@ -761,20 +801,23 @@ export default function MasterShopifyOrdersPage() {
   };
 
   const clearDateFilter = () => {
-    setStartDate({ day: '', month: '' });
-    setEndDate({ day: '', month: '' });
+    setStartDate({ day: '', month: '', year: '' });
+    setEndDate({ day: '', month: '', year: '' });
     setIsDateFilterOpen(false);
   };
-
-  const isFilterActive = startDate.day && startDate.month && endDate.day && endDate.month;
+  
+  const isFilterActive =
+    !!startDate.day && !!startDate.month && !!startDate.year &&
+    !!endDate.day && !!endDate.month && !!endDate.year;
 
   return (
     <>
       {isExporting && (
         <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-3 px-4 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-white" />
-          <p className="text-white text-lg font-semibold">
-            {PDF_LOADING_MESSAGES[loadingMessageIndex]}
+          <p className="text-white text-lg font-semibold flex items-center justify-center">
+            {typedLoadingText || PDF_LOADING_MESSAGES[loadingMessageIndex]}
+            <span className="ml-1 inline-block w-[8px] h-[18px] bg-white/80 animate-pulse rounded-[1px]" />
           </p>
           <p className="text-white/70 text-xs">
             This might take a few seconds, don&apos;t refresh.
@@ -888,59 +931,137 @@ export default function MasterShopifyOrdersPage() {
             {activeFilter !== 'ES' && pendingCounts.ES > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ES}</span>}
           </Button>
 
-          {/* Date Filter */}
           <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
             <PopoverTrigger asChild>
               <Button variant={isFilterActive ? "default" : "outline"} className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4" />
                 {isFilterActive ? (
-                  <span>{startDate.day} {startDate.month.slice(0,3)} - {endDate.day} {endDate.month.slice(0,3)}</span>
+                  <span>
+                    {startDate.day} {startDate.month.slice(0, 3)} {startDate.year} -{" "}
+                    {endDate.day} {endDate.month.slice(0, 3)} {endDate.year}
+                  </span>
                 ) : (
                   <span>Date Filter</span>
                 )}
-                {isFilterActive && <span className="ml-auto" onClick={(e) => { e.stopPropagation(); clearDateFilter(); }}><X className="h-3 w-3" /></span>}
+                {isFilterActive && (
+                  <span
+                    className="ml-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearDateFilter();
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
+                )}
               </Button>
             </PopoverTrigger>
+
             <PopoverContent className="w-80 p-4" align="start">
               <div className="grid gap-4">
+                {/* Start Date */}
                 <div className="space-y-2">
                   <h4 className="font-medium leading-none">Start Date</h4>
                   <div className="flex gap-2">
-                    <Select value={startDate.day} onValueChange={(v) => setStartDate(p => ({...p, day: v}))}>
+                    <Select
+                      value={startDate.day}
+                      onValueChange={(v) => setStartDate((p) => ({ ...p, day: v }))}
+                    >
                       <SelectTrigger className="w-[70px]">
                         <SelectValue placeholder="Day" />
                       </SelectTrigger>
                       <SelectContent>
-                        {DAYS.map(d => <SelectItem key={d} value={d.toString()}>{d}</SelectItem>)}
+                        {DAYS.map((d) => (
+                          <SelectItem key={d} value={d.toString()}>
+                            {d}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    <Select value={startDate.month} onValueChange={(v) => setStartDate(p => ({...p, month: v}))}>
+
+                    <Select
+                      value={startDate.month}
+                      onValueChange={(v) => setStartDate((p) => ({ ...p, month: v }))}
+                    >
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Month" />
                       </SelectTrigger>
                       <SelectContent>
-                        {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                        {MONTHS.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={startDate.year}
+                      onValueChange={(v) => setStartDate((p) => ({ ...p, year: v }))}
+                    >
+                      <SelectTrigger className="w-[80px]">
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {YEARS.map((y) => (
+                          <SelectItem key={y} value={y.toString()}>
+                            {y}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+
+                {/* End Date */}
                 <div className="space-y-2">
                   <h4 className="font-medium leading-none">End Date</h4>
                   <div className="flex gap-2">
-                    <Select value={endDate.day} onValueChange={(v) => setEndDate(p => ({...p, day: v}))}>
+                    <Select
+                      value={endDate.day}
+                      onValueChange={(v) => setEndDate((p) => ({ ...p, day: v }))}
+                    >
                       <SelectTrigger className="w-[70px]">
                         <SelectValue placeholder="Day" />
                       </SelectTrigger>
                       <SelectContent>
-                        {DAYS.map(d => <SelectItem key={d} value={d.toString()}>{d}</SelectItem>)}
+                        {DAYS.map((d) => (
+                          <SelectItem key={d} value={d.toString()}>
+                            {d}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    <Select value={endDate.month} onValueChange={(v) => setEndDate(p => ({...p, month: v}))}>
+
+                    <Select
+                      value={endDate.month}
+                      onValueChange={(v) => setEndDate((p) => ({ ...p, month: v }))}
+                    >
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Month" />
                       </SelectTrigger>
                       <SelectContent>
-                        {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                        {MONTHS.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={endDate.year}
+                      onValueChange={(v) => setEndDate((p) => ({ ...p, year: v }))}
+                    >
+                      <SelectTrigger className="w-[80px]">
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {YEARS.map((y) => (
+                          <SelectItem key={y} value={y.toString()}>
+                            {y}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -950,7 +1071,6 @@ export default function MasterShopifyOrdersPage() {
           </Popover>
 
           <div className="ml-auto flex items-center gap-2">
-  
             {/* 🔍 Search Button */}
             <Button 
               variant="ghost" 
@@ -960,28 +1080,18 @@ export default function MasterShopifyOrdersPage() {
               <Search className="h-4 w-4" />
             </Button>
 
-            {/* ▼ Export Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Download className="h-4 w-4" />
-                  <span className="sr-only">Export Orders</span>
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => handleExportPackingSheetPDF("pending")}>
-                  Pending Orders (PDF)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportPackingSheetPDF("shipped")}>
-                  Shipped Orders (PDF)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportPackingSheetPDF("all")}>
-                  All Orders (PDF)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
+            {/* Export único com filtros atuais + tab atual */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleExportPackingSheetPDF}
+              disabled={isExporting || (orderTab === "pending"
+                ? pendingOrders.length === 0
+                : shippedOrders.length === 0)}
+            >
+              <Download className="h-4 w-4" />
+              <span className="sr-only">Export filtered orders</span>
+            </Button>
           </div>
         </div>
       
