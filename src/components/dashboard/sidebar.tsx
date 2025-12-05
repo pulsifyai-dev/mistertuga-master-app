@@ -1,142 +1,108 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname } from "next/navigation";
 import {
   SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarContent,
-  SidebarFooter,
-} from '@/components/ui/sidebar';
+} from "@/components/ui/sidebar";
 import {
-  LayoutDashboard,
   BarChart3,
-  LogOut,
-  Settings,
   ShoppingBag,
-  ShieldAlert,
-} from 'lucide-react';
-import { Logo } from '@/components/icons/logo';
-import { useAuth } from '@/hooks/use-auth';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-import { Button } from '../ui/button';
+  AlertCircle,
+  Settings,
+} from "lucide-react";
 
+const sidebarItems = [
+  {
+    label: "Profit Stats",
+    href: "/profit-stats",
+    icon: BarChart3,
+  },
+  {
+    label: "Shopify Orders",
+    href: "/master-shopify-orders",
+    icon: ShoppingBag,
+  },
+  {
+    label: "Mistake Handling",
+    href: "/mistake-handling",
+    icon: AlertCircle,
+  },
+];
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 export default function DashboardSidebar() {
   const pathname = usePathname();
-  const { user, role, signOut } = useAuth();
-
-  const allMenuItems = [
-    {
-      href: '/profit-stats',
-      label: 'Profit Stats',
-      icon: BarChart3,
-      adminOnly: true,
-    },
-    {
-      href: '/master-shopify-orders',
-      label: 'Shopify Orders',
-      icon: ShoppingBag,
-      adminOnly: false, // Accessible to all roles
-    },
-    {
-      href: '/mistake-handling',
-      label: 'Mistake Handling',
-      icon: ShieldAlert,
-      adminOnly: true,
-    },
-  ];
-
-  const menuItems = allMenuItems.filter(item => 
-    !item.adminOnly || (item.adminOnly && role === 'ADMIN')
-  );
 
   return (
     <>
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-white/10 px-4 py-4">
         <div className="flex items-center gap-2">
-          <Logo className="size-8 shrink-0 text-primary" />
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold">
+            MT
+          </div>
           <div className="flex flex-col">
-            <h2 className="font-headline text-lg font-semibold">
-              MisterTuga
-            </h2>
-            <p className="text-xs text-muted-foreground">Insights</p>
+            <span className="text-sm font-semibold">MisterTuga</span>
+            <span className="text-[11px] text-muted-foreground">
+              Operations
+            </span>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+
+      <SidebarContent className="px-2 py-3">
         <SidebarMenu>
-          {menuItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === item.href}
-                tooltip={item.label}
-              >
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {sidebarItems.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
+
+            const baseClasses =
+              "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors";
+            const activeClasses = isActive
+              ? " bg-white text-black shadow-sm"
+              : " text-muted-foreground hover:bg-white/5";
+
+            return (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  className={baseClasses + activeClasses}
+                >
+                  <a href={item.href}>
+                    <Icon className="h-4 w-4" />
+                    <span className="truncate">{item.label}</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-auto w-full justify-start p-2">
-              <div className="flex w-full items-center gap-2">
-                <Avatar className="size-8">
-                  <AvatarImage src={user?.photoURL ?? undefined} />
-                  <AvatarFallback>
-                    {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col items-start truncate">
-                  <span className="max-w-full truncate text-sm font-medium">
-                    {user?.displayName || user?.email}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{role}</span>
-                </div>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">
-                  {user?.displayName || "My Account"}
-                </p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {user?.email}
-                </p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings">
-                <Settings className="mr-2 h-4 w-4" />
+
+      <SidebarFooter className="border-t border-white/10 px-4 py-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-white/5"
+            >
+              <button type="button">
+                <Settings className="h-4 w-4" />
                 <span>Settings</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={signOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </>
   );

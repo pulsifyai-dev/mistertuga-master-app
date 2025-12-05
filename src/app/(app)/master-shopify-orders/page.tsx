@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useRef } from 'react';
 import Image from 'next/image';
 import { useFirebase } from '@/firebase';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -21,7 +21,7 @@ import { updateOrderDetails } from './actions';
 import jsPDF from 'jspdf';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, ChevronUp } from "lucide-react";
+import { Search, ChevronUp, Eye, EyeOff } from "lucide-react";
 
 // --- Type Definitions ---
 type Product = { name: string; productId: string; customization: string; size: string; quantity: number; thumbnailUrl: string; version: string; };
@@ -78,7 +78,14 @@ export default function MasterShopifyOrdersPage() {
     
     // Tabs
   const [orderTab, setOrderTab] = useState<"pending" | "shipped">("pending");
-  
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+  const toggleOrderDetails = (orderId: string) => {
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
+
   // Overlay State
   const [isExporting, setIsExporting] = useState(false);
   const [exportChunksInfo, setExportChunksInfo] = useState<{
@@ -119,8 +126,9 @@ export default function MasterShopifyOrdersPage() {
   const { toast } = useToast();
   const form = useForm<EditOrderSchema>({ resolver: zodResolver(editOrderSchema) });
 
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -166,7 +174,7 @@ export default function MasterShopifyOrdersPage() {
           const hh = String(d.getHours()).padStart(2, "0");
           const min = String(d.getMinutes()).padStart(2, "0");
         
-          finalDate = `${yyyy}-${mm}-${dd} | ${hh}:${min}`;
+          finalDate = `${yyyy}-${mm}-${dd} | ${hh}:${min} PT`;
         } else {
           // 🔥 Caso seja string que vem do Shopify ("3 de dezembro de 2025 às 23:36:17 UTC")
           const raw = String(data.date);
@@ -184,7 +192,7 @@ export default function MasterShopifyOrdersPage() {
             const mm = String(parsed.getMonth() + 1).padStart(2, "0");
             const dd = String(parsed.getDate()).padStart(2, "0");
         
-            finalDate = `${yyyy}-${mm}-${dd}${time ? ` | ${time}` : ""}`;
+            finalDate = `${yyyy}-${mm}-${dd}${time ? ` | ${time} PT` : ""}`;
           } else {
             // Fallback — mantém a string original
             finalDate = raw;
@@ -271,6 +279,12 @@ export default function MasterShopifyOrdersPage() {
       window.clearTimeout(t);
     };
   }, [isExporting, exportChunksInfo?.totalChunks]);
+
+  useEffect(() => {
+    if (isSearchExpanded && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchExpanded]);
 
   const handleOpenEditModal = (order: Order) => {
     setEditingOrder(order);
@@ -724,6 +738,8 @@ export default function MasterShopifyOrdersPage() {
       order.countryCode === "DE" ? "#FFCE00" : // Amarelo
       order.countryCode === "ES" ? "#C60B1E" : // Vermelho
       "#888"; // fallback
+    
+    const isExpanded = !!expandedOrders[order.id];
 
     return (
       <Card
@@ -742,13 +758,12 @@ export default function MasterShopifyOrdersPage() {
           </div>
   
           <div className="flex items-center gap-1 text-[12px] text-muted-foreground md:justify-end">
-            <span className="text-lg">🕒</span>
             {order.date}
           </div>
         </CardHeader>
   
         {/* Body */}
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3.5">
           {/* ITEMS */}
           <div className="md:col-span-2 flex flex-col gap-4">
             {Array.isArray(order.items) &&
@@ -796,69 +811,107 @@ export default function MasterShopifyOrdersPage() {
                 })}
           </div>
   
-          {/* CUSTOMER + TRACKING */}
+          {/* CUSTOMER + TRACKING (com colapso) */}
           <div className="flex flex-col gap-4">
-            <div className="relative bg-muted/40 p-4 rounded-lg text-sm shadow-inner space-y-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-2 right-2 h-7 w-7"
-                onClick={() => handleOpenEditModal(order)}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-  
-              <h3 className="font-semibold mb-1">Customer Details</h3>
-  
-              <p>{order.customer.name}</p>
-              <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
-              <p className="text-muted-foreground">{order.customer.phone}</p>
-  
-              {order.note && (
-                <>
-                  <Separator className="my-2" />
-                  <div className="flex items-start gap-2 text-muted-foreground">
-                    <StickyNote className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600" />
-                    <p className="text-sm italic whitespace-pre-line">{order.note}</p>
-                  </div>
-                </>
-              )}
-  
-              {/* TRACKING SECTION */}
+            <div className="relative bg-black/30 border border-white/10 p-4 rounded-lg text-xs space-y-3">
+              {/* Top row: título + botão olho */}
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Tracking</h3>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 hover:bg-white/10"
+                  type="button"
+                  onClick={() => toggleOrderDetails(order.id)}
+                >
+                  {isExpanded ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+
+              {/* Campo de tracking – SEMPRE visível */}
               {isShipped ? (
-                <div className="flex items-center justify-between mt-3">
+                <div className="flex items-center justify-between pt-1 border-t border-white/10">
                   <p className="font-semibold">
                     Tracking:{" "}
-                    <span className="font-normal text-primary">{order.trackingNumber}</span>
+                    <span className="font-normal text-primary">
+                      {order.trackingNumber}
+                    </span>
                   </p>
-  
+
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    type="button"
                     onClick={() => handleResetTrackingNumber(order)}
                   >
                     <RotateCcw className="h-4 w-4" />
                   </Button>
                 </div>
               ) : (
-                <>
-                  <Separator className="my-2" />
-  
-                  <div className="flex flex-col gap-2">
-                    <Input
-                      type="text"
-                      placeholder="Tracking Number"
-                      value={trackingNumbers[order.id] || ""}
-                      onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
-                    />
-  
-                    <Button onClick={() => handleSubmitTrackingNumber(order)} disabled={isPending}>
-                      {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Submit
+                <div className="flex flex-col gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Tracking Number"
+                    value={trackingNumbers[order.id] || ""}
+                    onChange={(e) =>
+                      handleTrackingNumberChange(order.id, e.target.value)
+                    }
+                    className="h-8 text-xs bg-black/30 border-white/10"
+                  />
+
+                  <Button
+                    onClick={() => handleSubmitTrackingNumber(order)}
+                    disabled={isPending}
+                    className="h-8 text-xs"
+                    type="button"
+                  >
+                    {isPending && (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    )}
+                    Submit
+                  </Button>
+                </div>
+              )}
+
+              {/* NOTA – SEMPRE visível, se existir */}
+              {order.note && (
+                <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-500/5 border border-amber-500/20 p-2">
+                  <StickyNote className="h-3.5 w-3.5 mt-0.5 text-amber-400" />
+                  <p className="text-[11px] italic whitespace-pre-line">
+                    {order.note}
+                  </p>
+                </div>
+              )}
+
+              {/* PAINEL COLAPSADO – Customer Details + Note + Edit */}
+              {isExpanded && (
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold">Customer Details</p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 hover:bg-white/10"
+                      type="button"
+                      onClick={() => handleOpenEditModal(order)}
+                    >
+                      <Pencil className="h-4 w-4" />
                     </Button>
                   </div>
-                </>
+
+                  <p className="font-medium">{order.customer.name}</p>
+                  <p className="text-muted-foreground whitespace-pre-line">
+                    {order.customer.address}
+                  </p>
+                  <p className="text-muted-foreground">{order.customer.phone}</p>
+
+                </div>
               )}
             </div>
           </div>
@@ -876,6 +929,19 @@ export default function MasterShopifyOrdersPage() {
   const isFilterActive =
     !!startDate.day && !!startDate.month && !!startDate.year &&
     !!endDate.day && !!endDate.month && !!endDate.year;
+    
+  const searchMatches =
+  searchQuery.trim().length === 0
+    ? []
+    : filteredOrders
+        .filter((o) => {
+          const q = searchQuery.toLowerCase();
+          return (
+            o.id.toLowerCase().includes(q) ||
+            o.customer.name.toLowerCase().includes(q)
+          );
+        })
+        .slice(0, 10);
 
   return (
     <>
@@ -931,64 +997,7 @@ export default function MasterShopifyOrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-        <DialogContent className="p-0 max-w-lg">
-          <div className="border-b p-3 flex items-center gap-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search orders…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="border-none shadow-none focus-visible:ring-0"
-            />
-          </div>
-
-          <div className="max-h-[300px] overflow-y-auto">
-            {searchQuery.trim().length === 0 ? (
-              <p className="text-center text-muted-foreground p-4 text-sm">
-                Type to search for an order…
-              </p>
-            ) : (
-              <div className="flex flex-col">
-                {orders
-                  .filter((o) => {
-                    const q = searchQuery.toLowerCase();
-                    return (
-                      o.id.toLowerCase().includes(q) ||
-                      o.customer.name.toLowerCase().includes(q)
-                    );
-                  })
-                  .slice(0, 12)
-                  .map((order) => (
-                    <button
-                      key={order.id}
-                      className="text-left p-3 hover:bg-muted transition flex justify-between"
-                      onClick={() => {
-                        // Close modal
-                        setIsSearchOpen(false);
-                        // Scroll to order card
-                        setTimeout(() => {
-                          const el = document.getElementById(`order-${order.id}`);
-                          if (el) el.scrollIntoView({ behavior: "smooth" });
-                        }, 150);
-                      }}
-                    >
-                      <div>
-                        <p className="font-semibold">{order.id}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {order.customer.name}
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{order.status}</span>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-    <div className="flex flex-col gap-6" id="dashboard-content">
+      <div className="flex flex-col gap-4" id="dashboard-content">        
         {/* HEADER */}
         <div className="pt-2">
           <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
@@ -999,233 +1008,309 @@ export default function MasterShopifyOrdersPage() {
           </p>
         </div>
 
-{/* FILTER BAR – torna-se a “barra premium” */}
-<div className="sticky top-12 z-20 flex flex-col gap-3 rounded-2xl bg-black/40 border border-white/5 px-3 py-3 backdrop-blur-md md:flex-row md:items-center">        {/* Países */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={activeFilter === 'ALL' ? 'default' : 'outline'}
-            onClick={() => setActiveFilter('ALL')}
-            className="h-8 rounded-full text-xs px-3 border-white/10"
-          >
-            ALL
-            {pendingCounts.ALL > 0 && (
-              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-                {pendingCounts.ALL}
-              </span>
-            )}
-          </Button>
-
-          <Button
-            variant={activeFilter === 'PT' ? 'default' : 'outline'}
-            onClick={() => setActiveFilter('PT')}
-            className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
-          >
-            <FlagPT />
-            <span>Portugal</span>
-            {pendingCounts.PT > 0 && activeFilter !== 'PT' && (
-              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-                {pendingCounts.PT}
-              </span>
-            )}
-          </Button>
-
-          <Button
-            variant={activeFilter === 'DE' ? 'default' : 'outline'}
-            onClick={() => setActiveFilter('DE')}
-            className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
-          >
-            <FlagDE />
-            <span>Germany</span>
-            {pendingCounts.DE > 0 && activeFilter !== 'DE' && (
-              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-                {pendingCounts.DE}
-              </span>
-            )}
-          </Button>
-
-          <Button
-            variant={activeFilter === 'ES' ? 'default' : 'outline'}
-            onClick={() => setActiveFilter('ES')}
-            className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
-          >
-            <FlagES />
-            <span>Spain</span>
-            {pendingCounts.ES > 0 && activeFilter !== 'ES' && (
-              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-                {pendingCounts.ES}
-              </span>
-            )}
-          </Button>
-        </div>
-
-        {/* Date Filter */}
-        <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
-          <PopoverTrigger asChild>
+        {/* FILTER BAR – torna-se a “barra premium” */}
+        <div className="sticky top-12 z-20 flex flex-col gap-3 rounded-2xl bg-black/40 border border-white/5 px-3 py-3 backdrop-blur-md md:flex-row md:items-center">
+          {/* Países */}
+          <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant={isFilterActive ? 'default' : 'outline'}
-              className="h-8 rounded-full border-white/10 text-xs flex items-center gap-2 ml-1"
+              variant={activeFilter === 'ALL' ? 'default' : 'outline'}
+              onClick={() => setActiveFilter('ALL')}
+              className="h-8 rounded-full text-xs px-3 border-white/10"
             >
-              <CalendarIcon className="h-3.5 w-3.5" />
-              {isFilterActive ? (
-                <span>
-                  {startDate.day} {startDate.month.slice(0, 3)} {startDate.year} –{' '}
-                  {endDate.day} {endDate.month.slice(0, 3)} {endDate.year}
-                </span>
-              ) : (
-                <span>Date Filter</span>
-              )}
-              {isFilterActive && (
-                <span
-                  className="ml-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearDateFilter();
-                  }}
-                >
-                  <X className="h-3 w-3" />
+              ALL
+              {pendingCounts.ALL > 0 && (
+                <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                  {pendingCounts.ALL}
                 </span>
               )}
             </Button>
-            </PopoverTrigger>
 
-            <PopoverContent className="w-80 p-4" align="start">
-              <div className="grid gap-4">
-                {/* Start Date */}
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">Start Date</h4>
-                  <div className="flex gap-2">
-                    <Select
-                      value={startDate.day}
-                      onValueChange={(v) => setStartDate((p) => ({ ...p, day: v }))}
-                    >
-                      <SelectTrigger className="w-[70px]">
-                        <SelectValue placeholder="Day" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DAYS.map((d) => (
-                          <SelectItem key={d} value={d.toString()}>
-                            {d}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            <Button
+              variant={activeFilter === 'PT' ? 'default' : 'outline'}
+              onClick={() => setActiveFilter('PT')}
+              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+            >
+              <FlagPT />
+              <span>Portugal</span>
+              {pendingCounts.PT > 0 && activeFilter !== 'PT' && (
+                <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                  {pendingCounts.PT}
+                </span>
+              )}
+            </Button>
 
-                    <Select
-                      value={startDate.month}
-                      onValueChange={(v) => setStartDate((p) => ({ ...p, month: v }))}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MONTHS.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            <Button
+              variant={activeFilter === 'DE' ? 'default' : 'outline'}
+              onClick={() => setActiveFilter('DE')}
+              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+            >
+              <FlagDE />
+              <span>Germany</span>
+              {pendingCounts.DE > 0 && activeFilter !== 'DE' && (
+                <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                  {pendingCounts.DE}
+                </span>
+              )}
+            </Button>
 
-                    <Select
-                      value={startDate.year}
-                      onValueChange={(v) => setStartDate((p) => ({ ...p, year: v }))}
-                    >
-                      <SelectTrigger className="w-[80px]">
-                        <SelectValue placeholder="Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {YEARS.map((y) => (
-                          <SelectItem key={y} value={y.toString()}>
-                            {y}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* End Date */}
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">End Date</h4>
-                  <div className="flex gap-2">
-                    <Select
-                      value={endDate.day}
-                      onValueChange={(v) => setEndDate((p) => ({ ...p, day: v }))}
-                    >
-                      <SelectTrigger className="w-[70px]">
-                        <SelectValue placeholder="Day" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DAYS.map((d) => (
-                          <SelectItem key={d} value={d.toString()}>
-                            {d}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Select
-                      value={endDate.month}
-                      onValueChange={(v) => setEndDate((p) => ({ ...p, month: v }))}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MONTHS.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Select
-                      value={endDate.year}
-                      onValueChange={(v) => setEndDate((p) => ({ ...p, year: v }))}
-                    >
-                      <SelectTrigger className="w-[80px]">
-                        <SelectValue placeholder="Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {YEARS.map((y) => (
-                          <SelectItem key={y} value={y.toString()}>
-                            {y}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-
-       {/* Search + Export alinhados à direita */}
-       <div className="ml-auto flex items-center gap-2">
-          {/* Input de pesquisa “premium” */}
-          <div className="relative w-52">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search orders…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setIsSearchOpen(true)}
-              className="h-8 pl-8 pr-3 text-xs bg-black/30 border-white/10 focus-visible:ring-0"
-            />
+            <Button
+              variant={activeFilter === 'ES' ? 'default' : 'outline'}
+              onClick={() => setActiveFilter('ES')}
+              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+            >
+              <FlagES />
+              <span>Spain</span>
+              {pendingCounts.ES > 0 && activeFilter !== 'ES' && (
+                <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                  {pendingCounts.ES}
+                </span>
+              )}
+            </Button>
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleExportPackingSheetPDF}
-            disabled={isExporting}
-          >
-            <Download className="h-4 w-4" />
-            <span className="sr-only">Export Orders</span>
-          </Button>
+          {/* Search + Export alinhados à direita */}
+          <div className="ml-auto flex flex-col gap-2 md:flex-row md:items-center">
+            <div className="flex items-center gap-2 md:justify-end">
+              {/* WRAPPER RELATIVO DA PESQUISA */}
+              <div
+                className={
+                  "relative transition-all duration-200 " +
+                  (isSearchExpanded ? "w-60" : "w-8")
+                }
+              >
+                {/* Barra de pesquisa que expande para a esquerda */}
+                <div
+                  className={
+                    "flex items-center overflow-hidden bg-black/40 border border-white/15 rounded-full px-2 py-1 " +
+                    (isSearchExpanded ? "justify-start" : "justify-end")
+                  }
+                >
+                  {isSearchExpanded && (
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search orders…"
+                      className="flex-1 bg-transparent border-0 outline-none text-xs text-white placeholder:text-muted-foreground pr-1"
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isSearchExpanded) {
+                        // se já estiver aberto e clicas de novo: limpamos o texto
+                        setSearchQuery("");
+                      }
+                      setIsSearchExpanded((prev) => !prev);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10"
+                  >
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <span className="sr-only">Search orders</span>
+                  </button>
+                </div>
+
+                {/* DROPDOWN ALINHADO E COM MESMA LARGURA */}
+                {isSearchExpanded && searchQuery.trim().length > 0 && (
+                  <div className="absolute left-0 top-full mt-1 w-full rounded-xl bg-black/95 border border-white/10 shadow-lg max-h-64 overflow-y-auto z-30">
+                    {searchMatches.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-2 text-center">
+                        No orders found.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col">
+                        {searchMatches.map((order) => (
+                          <button
+                            key={order.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 flex items-center justify-between gap-2"
+                            onClick={() => {
+                              const el = document.getElementById(`order-${order.id}`);
+                              if (el) {
+                                el.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "start",
+                                });
+                              }
+                            }}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-[11px]">
+                                {order.id}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {order.customer.name}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">
+                              {order.status}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Export PDF */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleExportPackingSheetPDF}
+                disabled={isExporting}
+              >
+                <Download className="h-4 w-4" />
+                <span className="sr-only">Export Orders</span>
+              </Button>
+            </div>
+
+            {/* Date Filter fica logo abaixo em mobile / ao lado em desktop */}
+            <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={isFilterActive ? "default" : "outline"}
+                  className="h-8 rounded-full border-white/10 text-xs flex items-center gap-2"
+                >
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {isFilterActive ? (
+                    <span>
+                      {startDate.day} {startDate.month.slice(0, 3)} {startDate.year} –{" "}
+                      {endDate.day} {endDate.month.slice(0, 3)} {endDate.year}
+                    </span>
+                  ) : (
+                    <span>Date Filter</span>
+                  )}
+                  {isFilterActive && (
+                    <span
+                      className="ml-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearDateFilter();
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+
+              <PopoverContent className="w-80 p-4" align="start">
+                <div className="grid gap-4">
+                  {/* Start Date */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Start Date</h4>
+                    <div className="flex gap-2">
+                      <Select
+                        value={startDate.day}
+                        onValueChange={(v) => setStartDate((p) => ({ ...p, day: v }))}
+                      >
+                        <SelectTrigger className="w-[70px]">
+                          <SelectValue placeholder="Day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DAYS.map((d) => (
+                            <SelectItem key={d} value={d.toString()}>
+                              {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={startDate.month}
+                        onValueChange={(v) => setStartDate((p) => ({ ...p, month: v }))}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MONTHS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={startDate.year}
+                        onValueChange={(v) => setStartDate((p) => ({ ...p, year: v }))}
+                      >
+                        <SelectTrigger className="w-[80px]">
+                          <SelectValue placeholder="Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {YEARS.map((y) => (
+                            <SelectItem key={y} value={y.toString()}>
+                              {y}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* End Date */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">End Date</h4>
+                    <div className="flex gap-2">
+                      <Select
+                        value={endDate.day}
+                        onValueChange={(v) => setEndDate((p) => ({ ...p, day: v }))}
+                      >
+                        <SelectTrigger className="w-[70px]">
+                          <SelectValue placeholder="Day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DAYS.map((d) => (
+                            <SelectItem key={d} value={d.toString()}>
+                              {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={endDate.month}
+                        onValueChange={(v) => setEndDate((p) => ({ ...p, month: v }))}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MONTHS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={endDate.year}
+                        onValueChange={(v) => setEndDate((p) => ({ ...p, year: v }))}
+                      >
+                        <SelectTrigger className="w-[80px]">
+                          <SelectValue placeholder="Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {YEARS.map((y) => (
+                            <SelectItem key={y} value={y.toString()}>
+                              {y}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
       
         {!pageLoading && orders.length === 0 && (
             <Card className="flex flex-col items-center justify-center p-8 gap-4 text-center">
