@@ -53,6 +53,17 @@ const MONTHS = [
 ];
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
+const PDF_LOADING_MESSAGES = [
+  "Making your PDF look pretty...",
+  "Printing pixels on invisible paper...",
+  "Collecting all your orders in one place...",
+  "Polishing thumbnails, hang on...",
+  "Lining up rows and columns...",
+  "Double-checking names and numbers...",
+  "Almost there, don’t go anywhere...",
+  "Last touch, your PDF is coming...",
+];
+
 // Helper to pad numbers
 const pad = (n: number) => n.toString().padStart(2, '0');
 
@@ -75,6 +86,8 @@ export default function MasterShopifyOrdersPage() {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [trackingNumbers, setTrackingNumbers] = useState<{ [key: string]: string }>({});
   
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -89,6 +102,19 @@ export default function MasterShopifyOrdersPage() {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (!isExporting) return;
+  
+    // começa sempre na primeira mensagem
+    setLoadingMessageIndex(0);
+  
+    const interval = setInterval(() => {
+      setLoadingMessageIndex((prev) => (prev + 1) % PDF_LOADING_MESSAGES.length);
+    }, 1200); // troca de mensagem a cada 1.2s
+  
+    return () => clearInterval(interval);
+  }, [isExporting]);
 
   useEffect(() => {
     if (editingOrder) {
@@ -745,11 +771,16 @@ export default function MasterShopifyOrdersPage() {
   return (
     <>
       {isExporting && (
-        <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+        <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-3 px-4 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-white" />
-          <p className="text-white text-lg font-semibold">A gerar o PDF…</p>
+          <p className="text-white text-lg font-semibold">
+            {PDF_LOADING_MESSAGES[loadingMessageIndex]}
+          </p>
+          <p className="text-white/70 text-xs">
+            This might take a few seconds, don&apos;t refresh.
+          </p>
         </div>
-      )}  
+      )}
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
          <DialogContent>
