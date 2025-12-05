@@ -21,7 +21,7 @@ import { updateOrderDetails } from './actions';
 import jsPDF from 'jspdf';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search } from "lucide-react";
+import { Search, ChevronUp } from "lucide-react";
 
 // --- Type Definitions ---
 type Product = { name: string; productId: string; customization: string; size: string; quantity: number; thumbnailUrl: string; version: string; };
@@ -121,6 +121,17 @@ export default function MasterShopifyOrdersPage() {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+  
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     if (editingOrder) {
@@ -976,57 +987,105 @@ export default function MasterShopifyOrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col gap-8" id="dashboard-content">
-        <div>
-          <h1 className="font-headline text-3xl font-bold tracking-tight">Pedidos Shopify</h1>
-          <p className="text-muted-foreground">Faça a gestão e acompanhe os seus pedidos Shopify aqui.</p>
+    <div className="flex flex-col gap-6" id="dashboard-content">
+        {/* HEADER */}
+        <div className="pt-2">
+          <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
+            Shopify Orders
+          </h1>
+          <p className="text-muted-foreground max-w-xl text-sm mt-1.5">
+            Manage ALL your Shopify orders in one place.
+          </p>
         </div>
 
+{/* FILTER BAR – torna-se a “barra premium” */}
+<div className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-2xl bg-black/40 border border-white/5 px-3 py-2 backdrop-blur-md">
+        {/* Países */}
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant={activeFilter === 'ALL' ? 'default' : 'outline'} onClick={() => setActiveFilter('ALL')} className="flex items-center">
+          <Button
+            variant={activeFilter === 'ALL' ? 'default' : 'outline'}
+            onClick={() => setActiveFilter('ALL')}
+            className="h-8 rounded-full text-xs px-3 border-white/10"
+          >
             ALL
-            {activeFilter !== 'ALL' && pendingCounts.ALL > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ALL}</span>}
-          </Button>
-          <Button variant={activeFilter === 'PT' ? 'default' : 'outline'} onClick={() => setActiveFilter('PT')} className="flex items-center">
-            <FlagPT />
-            <span className="ml-2">Portugal</span>
-            {activeFilter !== 'PT' && pendingCounts.PT > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.PT}</span>}
-          </Button>
-          <Button variant={activeFilter === 'DE' ? 'default' : 'outline'} onClick={() => setActiveFilter('DE')} className="flex items-center">
-            <FlagDE />
-            <span className="ml-2">Germany</span>
-            {activeFilter !== 'DE' && pendingCounts.DE > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.DE}</span>}
-          </Button>
-          <Button variant={activeFilter === 'ES' ? 'default' : 'outline'} onClick={() => setActiveFilter('ES')} className="flex items-center">
-            <FlagES />
-            <span className="ml-2">Spain</span>
-            {activeFilter !== 'ES' && pendingCounts.ES > 0 && <span className="ml-1.5 rounded-lg bg-muted-foreground/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums">{pendingCounts.ES}</span>}
+            {pendingCounts.ALL > 0 && (
+              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                {pendingCounts.ALL}
+              </span>
+            )}
           </Button>
 
-          <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
-            <PopoverTrigger asChild>
-              <Button variant={isFilterActive ? "default" : "outline"} className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4" />
-                {isFilterActive ? (
-                  <span>
-                    {startDate.day} {startDate.month.slice(0, 3)} {startDate.year} -{" "}
-                    {endDate.day} {endDate.month.slice(0, 3)} {endDate.year}
-                  </span>
-                ) : (
-                  <span>Date Filter</span>
-                )}
-                {isFilterActive && (
-                  <span
-                    className="ml-auto"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearDateFilter();
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </span>
-                )}
-              </Button>
+          <Button
+            variant={activeFilter === 'PT' ? 'default' : 'outline'}
+            onClick={() => setActiveFilter('PT')}
+            className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+          >
+            <FlagPT />
+            <span>Portugal</span>
+            {pendingCounts.PT > 0 && activeFilter !== 'PT' && (
+              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                {pendingCounts.PT}
+              </span>
+            )}
+          </Button>
+
+          <Button
+            variant={activeFilter === 'DE' ? 'default' : 'outline'}
+            onClick={() => setActiveFilter('DE')}
+            className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+          >
+            <FlagDE />
+            <span>Germany</span>
+            {pendingCounts.DE > 0 && activeFilter !== 'DE' && (
+              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                {pendingCounts.DE}
+              </span>
+            )}
+          </Button>
+
+          <Button
+            variant={activeFilter === 'ES' ? 'default' : 'outline'}
+            onClick={() => setActiveFilter('ES')}
+            className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5"
+          >
+            <FlagES />
+            <span>Spain</span>
+            {pendingCounts.ES > 0 && activeFilter !== 'ES' && (
+              <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                {pendingCounts.ES}
+              </span>
+            )}
+          </Button>
+        </div>
+
+        {/* Date Filter */}
+        <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant={isFilterActive ? 'default' : 'outline'}
+              className="h-8 rounded-full border-white/10 text-xs flex items-center gap-2 ml-1"
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              {isFilterActive ? (
+                <span>
+                  {startDate.day} {startDate.month.slice(0, 3)} {startDate.year} –{' '}
+                  {endDate.day} {endDate.month.slice(0, 3)} {endDate.year}
+                </span>
+              ) : (
+                <span>Date Filter</span>
+              )}
+              {isFilterActive && (
+                <span
+                  className="ml-auto"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearDateFilter();
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </span>
+              )}
+            </Button>
             </PopoverTrigger>
 
             <PopoverContent className="w-80 p-4" align="start">
@@ -1142,30 +1201,31 @@ export default function MasterShopifyOrdersPage() {
             </PopoverContent>
           </Popover>
 
-          <div className="ml-auto flex items-center gap-2">
-            {/* 🔍 Search Button */}
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => setIsSearchOpen(true)}
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-
-            {/* Export único com filtros atuais + tab atual */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleExportPackingSheetPDF}
-              disabled={isExporting || (orderTab === "pending"
-                ? pendingOrders.length === 0
-                : shippedOrders.length === 0)}
-            >
-              <Download className="h-4 w-4" />
-              <span className="sr-only">Export filtered orders</span>
-            </Button>
+       {/* Search + Export alinhados à direita */}
+       <div className="ml-auto flex items-center gap-2">
+          {/* Input de pesquisa “premium” */}
+          <div className="relative w-52">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search orders…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchOpen(true)}
+              className="h-8 pl-8 pr-3 text-xs bg-black/30 border-white/10 focus-visible:ring-0"
+            />
           </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleExportPackingSheetPDF}
+            disabled={isExporting}
+          >
+            <Download className="h-4 w-4" />
+            <span className="sr-only">Export Orders</span>
+          </Button>
         </div>
+      </div>
       
         {!pageLoading && orders.length === 0 && (
             <Card className="flex flex-col items-center justify-center p-8 gap-4 text-center">
@@ -1177,21 +1237,41 @@ export default function MasterShopifyOrdersPage() {
             </Card>
         )}
 
-        {/* Tabs */}
-        <div className="flex items-center gap-4 mt-6">
-          <Button 
-            variant={orderTab === "pending" ? "default" : "outline"}
-            onClick={() => { setOrderTab("pending"); setPage(1); }}
-          >
-            Pending Orders ({pendingOrders.length})
-          </Button>
+        {/* Tabs como segmented control */}
+        <div className="mt-6">
+          <div className="inline-flex items-center rounded-full bg-black/40 p-1 border border-white/5">
+            <Button
+              variant={orderTab === "pending" ? "default" : "ghost"}
+              size="sm"
+              className={`h-8 rounded-full px-4 text-xs transition-none ${
+                orderTab === "pending"
+                  ? "bg-white text-black shadow-sm"
+                  : "text-muted-foreground hover:bg-white/5"
+              }`}
+              onClick={() => {
+                setOrderTab("pending");
+                setPage(1);
+              }}
+            >
+              Pending Orders ({pendingOrders.length})
+            </Button>
 
-          <Button 
-            variant={orderTab === "shipped" ? "default" : "outline"}
-            onClick={() => { setOrderTab("shipped"); setPage(1); }}
-          >
-            Shipped Orders ({shippedOrders.length})
-          </Button>
+            <Button
+              variant={orderTab === "shipped" ? "default" : "ghost"}
+              size="sm"
+              className={`h-8 rounded-full px-4 text-xs transition-none ${
+                orderTab === "shipped"
+                  ? "bg-white text-black shadow-sm"
+                  : "text-muted-foreground hover:bg-white/5"
+              }`}
+              onClick={() => {
+                setOrderTab("shipped");
+                setPage(1);
+              }}
+            >
+              Shipped Orders ({shippedOrders.length})
+            </Button>
+          </div>
         </div>
 
         {/* Selected Tab Content */}
@@ -1236,6 +1316,17 @@ export default function MasterShopifyOrdersPage() {
         </div>
 
       </div>
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-16 right-6 z-[9999] rounded-full bg-white/10 
+                    border border-white/30 backdrop-blur-md text-white 
+                    shadow-lg p-3 hover:bg-white/20 transition"
+        >
+          <ChevronUp className="h-5 w-5" />
+        </button>
+      )}
     </>
   );
 }
