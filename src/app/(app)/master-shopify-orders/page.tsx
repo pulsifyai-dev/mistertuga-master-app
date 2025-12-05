@@ -18,7 +18,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { updateOrderDetails } from './actions';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -244,165 +243,312 @@ export default function MasterShopifyOrdersPage() {
 
   const filteredOrders = filterOrdersByDate(activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter));
 
-  const handleExportPackingSheetPDF = async (mode: "pending" | "shipped" | "all") => {
-    // Liga o overlay logo no início
+  const handleExportPackingSheetPDF = async (
+    mode: "pending" | "shipped" | "all"
+  ) => {
+    // Cache apenas para este export
+    const imageCache: Record<string, string> = {};
+  
+    const loadImageAsDataURL = async (url: string): Promise<string> => {
+      if (imageCache[url]) return imageCache[url];
+  
+      const res = await fetch(url);
+      const blob = await res.blob();
+  
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          imageCache[url] = dataUrl;
+          resolve(dataUrl);
+        };
+        reader.readAsDataURL(blob);
+      });
+    };
+  
+    const toText = (value: unknown, fallback: string = "—"): string => {
+      if (value === undefined || value === null) return fallback;
+      const s = String(value);
+      return s.trim() === "" ? fallback : s;
+    };
+  
     setIsExporting(true);
   
     try {
-      // 1) Escolher encomendas a exportar
+      // 1) Filtrar encomendas
       let ordersToExport: Order[];
   
       if (mode === "pending") {
-        ordersToExport = filteredOrders.filter(o => o.status === "Pending Production");
+        ordersToExport = filteredOrders.filter(
+          (o) => o.status === "Pending Production"
+        );
       } else if (mode === "shipped") {
-        ordersToExport = filteredOrders.filter(o => o.status === "Shipped");
+        ordersToExport = filteredOrders.filter((o) => o.status === "Shipped");
       } else {
         ordersToExport = filteredOrders;
       }
   
-      // 2) Se não houver nada para exportar, avisa e sai
       if (ordersToExport.length === 0) {
         toast({
           title: "No Orders",
           description: "There are no orders to export in this category.",
         });
-        return; // o finally abaixo vai desligar o overlay
+        return;
       }
   
-      // 3) Criar PDF
+      // 2) Setup PDF
       const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const marginX = 10;
+      const marginY = 10;
+      const rowHeight = 26;
+      const thumbSize = 18;
+  
+      const columns = [
+        { key: "thumb", label: "Thumbnail", width: 26 },
+        { key: "product", label: "Product", width: 68 },
+        { key: "size", label: "Size", width: 12 },
+        { key: "qty", label: "Qty", width: 12 },
+        { key: "version", label: "Version", width: 25 },
+        {
+          key: "custom",
+          label: "Customization",
+          width:
+            pageWidth -
+            marginX * 2 -
+            (26 + 68 + 12 + 12 + 25),
+        },
+      ];
+
+      // 🔹 X inicial de cada coluna (mesmo que uses em várias páginas)
+      const colXPositions: number[] = [];
+      {
+        let runningX = marginX;
+        for (const col of columns) {
+          colXPositions.push(runningX);
+          runningX += col.width;
+        }
+      }
+  
       let firstPage = true;
   
       for (const order of ordersToExport) {
-        // --- criar container temporário ---
-        const container = document.createElement("div");
-        container.style.width = "800px";
-        container.style.padding = "20px";
-        container.style.fontFamily = "Arial, sans-serif";
-        container.style.fontSize = "14px";
-        container.style.background = "#ffffff";
-        container.style.color = "#000";
-        container.style.border = "1px solid #ddd";
-  
-        container.innerHTML = `
-          <h2 style="margin:0 0 15px 0; font-size:20px; font-weight:600;">
-            Order ${order.id.replace(/^#/, "")} — ${order.date}
-          </h2>
-  
-          <div style="margin-bottom:20px; padding:12px; border:1px solid #ddd; background:#fafafa; border-radius:6px;">
-            <strong style="font-size:15px;">Customer</strong><br/>
-            <div style="margin-top:4px; line-height:1.4;">
-              ${order.customer.name}<br/>
-              ${order.customer.address.replace(/\n/g, "<br/>")}<br/>
-              <strong>Phone:</strong> ${order.customer.phone}
-            </div>
-  
-            <div style="margin-top:10px;">
-              <strong>Status:</strong> ${order.status}<br/>
-              <strong>Tracking:</strong> ${order.trackingNumber || "N/A"}
-            </div>
-          </div>
-  
-          <h3 style="margin:20px 0 10px 0; font-size:16px;">Items</h3>
-  
-          <table style="width:100%; border-collapse: collapse; font-size:13px;">
-            <thead>
-              <tr style="background:#f0f0f0;">
-                <th style="border:1px solid #ccc; padding:8px; width:90px;">Thumbnail</th>
-                <th style="border:1px solid #ccc; padding:8px;">Product</th>
-                <th style="border:1px solid #ccc; padding:8px; width:50px;">Size</th>
-                <th style="border:1px solid #ccc; padding:8px; width:40px;">Qty</th>
-                <th style="border:1px solid #ccc; padding:8px; width:90px;">Version</th>
-                <th style="border:1px solid #ccc; padding:8px; width:110px;">Customization</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                order.items
-                  .filter(item => item && typeof item === "object")
-                  .map(item => {
-                    const thumb =
-                      item.thumbnailUrl &&
-                      item.thumbnailUrl !== "null" &&
-                      item.thumbnailUrl !== "undefined" &&
-                      item.thumbnailUrl.trim() !== "" &&
-                      item.thumbnailUrl.startsWith("http")
-                        ? item.thumbnailUrl
-                        : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
-  
-                    return `
-                    <tr>
-                      <td style="border:1px solid #ccc; padding:8px; text-align:center;">
-                        <img
-                          src="${thumb}"
-                          width="80"
-                          height="80"
-                          style="object-fit:contain; border-radius:4px;"
-                        />
-                      </td>
-                      <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
-                      <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
-                      <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
-                      <td style="border:1px solid #ccc; padding:8px;">
-                        ${
-                          item.version === "Player Edition"
-                            ? `<strong>${item.version}</strong>`
-                            : item.version || "—"
-                        }
-                      </td>
-                      <td style="border:1px solid #ccc; padding:8px;">${item.customization}</td>
-                    </tr>
-                    `;
-                  })
-                  .join("")
-              }
-            </tbody>
-          </table>
-  
-          ${
-            order.note
-              ? `
-            <h3 style="margin:25px 0 8px 0; font-size:16px;">Notes</h3>
-            <div style="white-space:pre-line; border:1px solid #ccc; padding:10px; border-radius:6px; background:#fafafa; font-size:13px;">
-              ${order.note}
-            </div>
-          `
-              : ""
-          }
-        `;
-  
-        // Posicionar fora da viewport mas visível para o html2canvas
-        container.style.position = "absolute";
-        container.style.top = "0";
-        container.style.left = "-2000px";
-        container.style.opacity = "1";
-        container.style.zIndex = "0";
-  
-        document.body.appendChild(container);
-  
-        // 4) Captura com html2canvas
-        const canvas = await html2canvas(container, {
-          scale: 1.3,
-          useCORS: true,
-          logging: false,
-        });
-  
-        const imgData = canvas.toDataURL("image/jpeg", 0.78);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const ratio = canvas.height / canvas.width || 1;
-        const pdfHeight = pdfWidth * ratio;
-  
         if (!firstPage) {
           pdf.addPage();
         }
         firstPage = false;
   
-        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+        let cursorY = marginY;
   
-        document.body.removeChild(container);
+        // ---------- HEADER DA ENCOMENDA ----------
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(
+          toText(`Order ${order.id.replace(/^#/, "")} - ${order.date}`),
+          marginX,
+          cursorY
+        );
+  
+        cursorY += 8;
+  
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Customer", marginX, cursorY);
+        cursorY += 5;
+  
+        pdf.setFont("helvetica", "normal");
+  
+        const addressLines = (order.customer.address || "")
+          .split("\n")
+          .filter((l) => l.trim() !== "");
+  
+        const customerLines = [
+          toText(order.customer.name),
+          ...addressLines.map((l) => toText(l)),
+          `Phone: ${toText(order.customer.phone)}`,
+          "",
+          `Status: ${toText(order.status)}`,
+          `Tracking: ${toText(order.trackingNumber, " ")}`,
+        ];
+  
+        customerLines.forEach((line) => {
+          pdf.text(line, marginX, cursorY);
+          cursorY += 4.5;
+        });
+  
+        // ---------- ESPAÇO + TÍTULO "ITEMS" ----------
+        cursorY += 8; // mais respiro depois de Tracking
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Items", marginX, cursorY);
+  
+        cursorY += 6; // espaço entre título e tabela
+  
+        // ---------- CABEÇALHO DA TABELA ----------
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+  
+        let colX = marginX;
+        columns.forEach((col) => {
+          pdf.rect(colX, cursorY, col.width, 8);
+          pdf.text(col.label, colX + 2, cursorY + 5);
+          colX += col.width;
+        });
+  
+        cursorY += 8;
+        pdf.setFont("helvetica", "normal");
+  
+        // ---------- LINHAS DA TABELA ----------
+        const items = (order.items || []).filter(
+          (it) => it && typeof it === "object"
+        );
+  
+        for (const item of items) {
+          // Se não couber mais uma linha, nova página com header de continuação
+          if (cursorY + rowHeight > pageHeight - marginY) {
+            pdf.addPage();
+  
+            cursorY = marginY;
+            pdf.setFontSize(12);
+            pdf.setFont("helvetica", "bold");
+            pdf.text(
+              toText(`Order ${order.id.replace(/^#/, "")} — (cont.)`),
+              marginX,
+              cursorY
+            );
+  
+            cursorY += 6;
+            pdf.setFontSize(10);
+            pdf.setFont("helvetica", "bold");
+  
+            let headerX = marginX;
+            columns.forEach((col) => {
+              pdf.rect(headerX, cursorY, col.width, 8);
+              pdf.text(col.label, headerX + 2, cursorY + 5);
+              headerX += col.width;
+            });
+  
+            cursorY += 8;
+            pdf.setFont("helvetica", "normal");
+          }
+  
+          // Caixa da linha
+          let cellX = marginX;
+          columns.forEach((col) => {
+            pdf.rect(cellX, cursorY, col.width, rowHeight);
+            cellX += col.width;
+          });
+  
+          // Thumbnail
+          const validThumb =
+            item.thumbnailUrl &&
+            item.thumbnailUrl !== "null" &&
+            item.thumbnailUrl !== "undefined" &&
+            item.thumbnailUrl.trim() !== "" &&
+            item.thumbnailUrl.startsWith("http");
+  
+          const thumbUrl = validThumb
+            ? item.thumbnailUrl
+            : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
+  
+          try {
+            const imgData = await loadImageAsDataURL(thumbUrl);
+            pdf.addImage(
+              imgData,
+              "JPEG",
+              marginX + 4,
+              cursorY + 4,
+              thumbSize,
+              thumbSize
+            );
+          } catch (e) {
+            console.error("Erro ao carregar thumbnail", e);
+          }
+  
+          // ---------- TEXTO NAS COLUNAS ----------
+          const baseY = cursorY + 6;
+
+          const productName = toText(item.name);
+          const sizeText = toText(item.size);
+          const qtyText = toText(item.quantity ?? 0, "0");
+          const versionText = toText(item.version);
+          const customizationText = toText(item.customization);
+
+          // X de cada coluna
+          const thumbX = colXPositions[0];
+          const productX = colXPositions[1];
+          const sizeX = colXPositions[2];
+          const qtyX = colXPositions[3];
+          const versionX = colXPositions[4];
+          const customX = colXPositions[5];
+
+          // Product (esquerda, com maxWidth)
+          pdf.setFont("helvetica", "normal");
+          pdf.text(productName, productX + 2, baseY, {
+            maxWidth: columns[1].width - 4,
+          });
+
+          // Size (centrado na coluna)
+          const sizeCenterX = sizeX + columns[2].width / 2;
+          pdf.text(sizeText, sizeCenterX, baseY, { align: "center" });
+
+          // Qty (centrado na coluna)
+          const qtyCenterX = qtyX + columns[3].width / 2;
+          pdf.text(qtyText, qtyCenterX, baseY, { align: "center" });
+
+          // Version (Player Edition em negrito)
+          if (versionText === "Player Edition") {
+            pdf.setFont("helvetica", "bold");
+          } else {
+            pdf.setFont("helvetica", "normal");
+          }
+          pdf.text(versionText, versionX + 2, baseY, {
+            maxWidth: columns[4].width - 4,
+          });
+
+          // Customization (normal, esquerda)
+          pdf.setFont("helvetica", "normal");
+          pdf.text(customizationText, customX + 2, baseY, {
+            maxWidth: columns[5].width - 4,
+          });
+  
+          cursorY += rowHeight;
+        }
+  
+        // ---------- NOTAS ----------
+        if (order.note) {
+          if (cursorY + 20 > pageHeight - marginY) {
+            pdf.addPage();
+            cursorY = marginY + 10;
+          }
+  
+          pdf.setFontSize(11);
+          pdf.setFont("helvetica", "bold");
+          pdf.text("Notes", marginX, cursorY + 5);
+  
+          pdf.setFont("helvetica", "normal");
+  
+          const noteLines = pdf.splitTextToSize(
+            order.note,
+            pageWidth - marginX * 2
+          );
+  
+          pdf.rect(
+            marginX,
+            cursorY + 7,
+            pageWidth - marginX * 2,
+            noteLines.length * 5 + 6
+          );
+  
+          let noteY = cursorY + 12;
+          noteLines.forEach((line) => {
+            pdf.text(line, marginX + 3, noteY);
+            noteY += 5;
+          });
+        }
       }
   
-      // 5) Guardar o PDF no fim
       pdf.save(`${mode}_orders_${new Date().toISOString().split("T")[0]}.pdf`);
     } catch (error) {
       console.error("Erro ao gerar PDF:", error);
@@ -412,7 +558,6 @@ export default function MasterShopifyOrdersPage() {
         description: "Tenta novamente em alguns segundos.",
       });
     } finally {
-      // 6) Desligar o overlay em qualquer cenário
       setIsExporting(false);
     }
   };
