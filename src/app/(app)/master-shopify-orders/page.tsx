@@ -975,7 +975,7 @@ export default function MasterShopifyOrdersPage() {
         </div>
       )}
 
-      <Dialog open={isEditModalOpen}   onOpenChange={setIsEditModalOpen}>
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
          <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Order {editingOrder?.id}</DialogTitle>
