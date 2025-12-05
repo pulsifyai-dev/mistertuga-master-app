@@ -22,6 +22,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search } from "lucide-react";
 
 // --- Type Definitions ---
 type Product = { name: string; productId: string; customization: string; size: string; quantity: number; thumbnailUrl: string; version: string; };
@@ -59,6 +60,17 @@ const pad = (n: number) => n.toString().padStart(2, '0');
 // --- Main Page Component ---
 export default function MasterShopifyOrdersPage() {
   const { firestore, user, isUserLoading } = useFirebase();
+    
+    // Tabs
+  const [orderTab, setOrderTab] = useState<"pending" | "shipped">("pending");
+  
+  // Overlay State
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Pagination
+  const ITEMS_PER_PAGE = 10;
+  const [page, setPage] = useState(1);
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('ALL');
@@ -75,6 +87,9 @@ export default function MasterShopifyOrdersPage() {
 
   const { toast } = useToast();
   const form = useForm<EditOrderSchema>({ resolver: zodResolver(editOrderSchema) });
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (editingOrder) {
@@ -230,115 +245,176 @@ export default function MasterShopifyOrdersPage() {
   const filteredOrders = filterOrdersByDate(activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter));
 
   const handleExportPackingSheetPDF = async (mode: "pending" | "shipped" | "all") => {
-    let ordersToExport: Order[];
+    // Liga o overlay logo no início
+    setIsExporting(true);
   
-    if (mode === "pending") {
-      ordersToExport = filteredOrders.filter(o => o.status === "Pending Production");
-    } else if (mode === "shipped") {
-      ordersToExport = filteredOrders.filter(o => o.status === "Shipped");
-    } else {
-      ordersToExport = filteredOrders;
-    }
+    try {
+      // 1) Escolher encomendas a exportar
+      let ordersToExport: Order[];
   
-    if (ordersToExport.length === 0) {
-      toast({
-        title: "No Orders",
-        description: "There are no orders to export in this category."
-      });
-      return;
-    }
+      if (mode === "pending") {
+        ordersToExport = filteredOrders.filter(o => o.status === "Pending Production");
+      } else if (mode === "shipped") {
+        ordersToExport = filteredOrders.filter(o => o.status === "Shipped");
+      } else {
+        ordersToExport = filteredOrders;
+      }
   
-    const pdf = new jsPDF("p", "mm", "a4");
-    let firstPage = true;
+      // 2) Se não houver nada para exportar, avisa e sai
+      if (ordersToExport.length === 0) {
+        toast({
+          title: "No Orders",
+          description: "There are no orders to export in this category.",
+        });
+        return; // o finally abaixo vai desligar o overlay
+      }
   
-    for (const order of ordersToExport) {
-      const container = document.createElement("div");
-      container.style.width = "800px";
-      container.style.padding = "20px";
-      container.style.fontFamily = "Arial, sans-serif";
-      container.style.fontSize = "14px";
-      container.style.background = "#ffffff";
-      container.style.color = "#000";
-      container.style.border = "1px solid #ddd";
+      // 3) Criar PDF
+      const pdf = new jsPDF("p", "mm", "a4");
+      let firstPage = true;
   
-      container.innerHTML = `
-        <h2 style="margin:0 0 15px 0; font-size:20px; font-weight:600;">
-          Order ${order.id.replace(/^#/, "")} — ${order.date}
-        </h2>
+      for (const order of ordersToExport) {
+        // --- criar container temporário ---
+        const container = document.createElement("div");
+        container.style.width = "800px";
+        container.style.padding = "20px";
+        container.style.fontFamily = "Arial, sans-serif";
+        container.style.fontSize = "14px";
+        container.style.background = "#ffffff";
+        container.style.color = "#000";
+        container.style.border = "1px solid #ddd";
   
-        <div style="margin-bottom:20px; padding:12px; border:1px solid #ddd; background:#fafafa; border-radius:6px;">
-          <strong style="font-size:15px;">Customer</strong><br/>
-          <div style="margin-top:4px; line-height:1.4;">
-            ${order.customer.name}<br/>
-            ${order.customer.address.replace(/\n/g, "<br/>")}<br/>
-            <strong>Phone:</strong> ${order.customer.phone}
+        container.innerHTML = `
+          <h2 style="margin:0 0 15px 0; font-size:20px; font-weight:600;">
+            Order ${order.id.replace(/^#/, "")} — ${order.date}
+          </h2>
+  
+          <div style="margin-bottom:20px; padding:12px; border:1px solid #ddd; background:#fafafa; border-radius:6px;">
+            <strong style="font-size:15px;">Customer</strong><br/>
+            <div style="margin-top:4px; line-height:1.4;">
+              ${order.customer.name}<br/>
+              ${order.customer.address.replace(/\n/g, "<br/>")}<br/>
+              <strong>Phone:</strong> ${order.customer.phone}
+            </div>
+  
+            <div style="margin-top:10px;">
+              <strong>Status:</strong> ${order.status}<br/>
+              <strong>Tracking:</strong> ${order.trackingNumber || "N/A"}
+            </div>
           </div>
   
-          <div style="margin-top:10px;">
-            <strong>Status:</strong> ${order.status}<br/>
-            <strong>Tracking:</strong> ${order.trackingNumber || "N/A"}
-          </div>
-        </div>
+          <h3 style="margin:20px 0 10px 0; font-size:16px;">Items</h3>
   
-        <h3 style="margin:20px 0 10px 0; font-size:16px;">Items</h3>
-  
-        <table style="width:100%; border-collapse: collapse; font-size:13px;">
-          <thead>
-            <tr style="background:#f0f0f0;">
-              <th style="border:1px solid #ccc; padding:8px; width:90px;">Thumbnail</th>
-              <th style="border:1px solid #ccc; padding:8px;">Product</th>
-              <th style="border:1px solid #ccc; padding:8px; width:50px;">Size</th>
-              <th style="border:1px solid #ccc; padding:8px; width:40px;">Qty</th>
-              <th style="border:1px solid #ccc; padding:8px; width:90px;">Version</th>
-              <th style="border:1px solid #ccc; padding:8px; width:110px;">Customization</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${order.items
-              .filter(item => item && typeof item === "object")
-              .map(item => `
-              <tr>
-                <td style="border:1px solid #ccc; padding:8px; text-align:center;">
-                  <img src="${item?.thumbnailUrl && item.thumbnailUrl !== "null"
-                    ? item.thumbnailUrl
-                    : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A"}"
-                    width="80" height="80"
-                    style="object-fit:contain; border-radius:4px;"
-                  />
-                  </td>
-                <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
-                <td style="border:1px solid #ccc; padding:8px;"><strong>${item.version === "Player Edition" ? `<strong>${item.version}</strong>` : item.version}</strong></td>
-                <td style="border:1px solid #ccc; padding:8px;">${item.customization}</td>
+          <table style="width:100%; border-collapse: collapse; font-size:13px;">
+            <thead>
+              <tr style="background:#f0f0f0;">
+                <th style="border:1px solid #ccc; padding:8px; width:90px;">Thumbnail</th>
+                <th style="border:1px solid #ccc; padding:8px;">Product</th>
+                <th style="border:1px solid #ccc; padding:8px; width:50px;">Size</th>
+                <th style="border:1px solid #ccc; padding:8px; width:40px;">Qty</th>
+                <th style="border:1px solid #ccc; padding:8px; width:90px;">Version</th>
+                <th style="border:1px solid #ccc; padding:8px; width:110px;">Customization</th>
               </tr>
-            `).join("")}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              ${
+                order.items
+                  .filter(item => item && typeof item === "object")
+                  .map(item => {
+                    const thumb =
+                      item.thumbnailUrl &&
+                      item.thumbnailUrl !== "null" &&
+                      item.thumbnailUrl !== "undefined" &&
+                      item.thumbnailUrl.trim() !== "" &&
+                      item.thumbnailUrl.startsWith("http")
+                        ? item.thumbnailUrl
+                        : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
   
-        ${order.note ? `
-          <h3 style="margin:25px 0 8px 0; font-size:16px;">Notes</h3>
-          <div style="white-space:pre-line; border:1px solid #ccc; padding:10px; border-radius:6px; background:#fafafa; font-size:13px;">
-            ${order.note}
-          </div>
-        ` : ""}
-      `;
+                    return `
+                    <tr>
+                      <td style="border:1px solid #ccc; padding:8px; text-align:center;">
+                        <img
+                          src="${thumb}"
+                          width="80"
+                          height="80"
+                          style="object-fit:contain; border-radius:4px;"
+                        />
+                      </td>
+                      <td style="border:1px solid #ccc; padding:8px;">${item.name}</td>
+                      <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.size}</td>
+                      <td style="border:1px solid #ccc; padding:8px; text-align:center;">${item.quantity}</td>
+                      <td style="border:1px solid #ccc; padding:8px;">
+                        ${
+                          item.version === "Player Edition"
+                            ? `<strong>${item.version}</strong>`
+                            : item.version || "—"
+                        }
+                      </td>
+                      <td style="border:1px solid #ccc; padding:8px;">${item.customization}</td>
+                    </tr>
+                    `;
+                  })
+                  .join("")
+              }
+            </tbody>
+          </table>
   
-      document.body.appendChild(container);
+          ${
+            order.note
+              ? `
+            <h3 style="margin:25px 0 8px 0; font-size:16px;">Notes</h3>
+            <div style="white-space:pre-line; border:1px solid #ccc; padding:10px; border-radius:6px; background:#fafafa; font-size:13px;">
+              ${order.note}
+            </div>
+          `
+              : ""
+          }
+        `;
   
-      const canvas = await html2canvas(container, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL("image/png");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        // Posicionar fora da viewport mas visível para o html2canvas
+        container.style.position = "absolute";
+        container.style.top = "0";
+        container.style.left = "-2000px";
+        container.style.opacity = "1";
+        container.style.zIndex = "0";
   
-      if (!firstPage) pdf.addPage();
-      firstPage = false;
+        document.body.appendChild(container);
   
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      document.body.removeChild(container);
+        // 4) Captura com html2canvas
+        const canvas = await html2canvas(container, {
+          scale: 1.3,
+          useCORS: true,
+          logging: false,
+        });
+  
+        const imgData = canvas.toDataURL("image/jpeg", 0.78);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const ratio = canvas.height / canvas.width || 1;
+        const pdfHeight = pdfWidth * ratio;
+  
+        if (!firstPage) {
+          pdf.addPage();
+        }
+        firstPage = false;
+  
+        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+  
+        document.body.removeChild(container);
+      }
+  
+      // 5) Guardar o PDF no fim
+      pdf.save(`${mode}_orders_${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao gerar o PDF",
+        description: "Tenta novamente em alguns segundos.",
+      });
+    } finally {
+      // 6) Desligar o overlay em qualquer cenário
+      setIsExporting(false);
     }
-  
-    pdf.save(`${mode}_orders_${new Date().toISOString().split("T")[0]}.pdf`);
   };
     
 
@@ -355,99 +431,163 @@ export default function MasterShopifyOrdersPage() {
   const pendingOrders = filteredOrders.filter(o => o.status === 'Pending Production');
   const shippedOrders = filteredOrders.filter(o => o.status === 'Shipped');
 
-  const renderOrderCard = (order: Order, isShipped = false) => (
-    <Card key={order.id} className="bg-card order-card">
-      <CardHeader className="flex flex-row items-center justify-between bg-muted/30 p-4">
-        <div className="flex items-center gap-2 font-semibold text-card-foreground">
-          {countryFlags[order.countryCode]}<span>{order.id}</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-muted-foreground">{order.date}</div>
-        </div>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
-      <div className="md:col-span-2 flex flex-col gap-4">
-        {(() => {
-          const safeItems = Array.isArray(order.items) ? order.items : [];
+  // Select list based on tab
+  const listToShow = orderTab === "pending" ? pendingOrders : shippedOrders;
+  const totalPages = Math.ceil(listToShow.length / ITEMS_PER_PAGE);
 
-          return safeItems
-            .filter((it) => it && typeof it === "object")
-            .map((item, index) => (
-              <div key={index} className="flex items-start gap-4">
-                <div className="thumb-wrapper">
-                  {(() => {
-                    const isValid =
-                      item?.thumbnailUrl &&
-                      item.thumbnailUrl !== "null" &&
-                      item.thumbnailUrl !== "undefined" &&
-                      item.thumbnailUrl.trim() !== "" &&
-                      item.thumbnailUrl.startsWith("http");
-
-                    const thumb = isValid
-                      ? item.thumbnailUrl
-                      : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
-
-                    return (
-                      <img
-                        src={thumb}
-                        alt={item.name || "Item"}
-                        className="thumb-image"
-                      />
-                    );
-                  })()}
-                </div>
-
-                <div className="text-sm">
-                  <p className="font-semibold">{item.name ?? "Unnamed Product"}</p>
-                  <p className="text-muted-foreground">ID: {item.productId ?? "—"}</p>
-                  <p className="text-muted-foreground">Customization: {item.customization ?? "—"}</p>
-                  <p className="text-muted-foreground">Size: {item.size ?? "—"}</p>
-                  <p className="text-muted-foreground">Qty: {item.quantity ?? 0}</p>
-                  <p className="text-muted-foreground">Version: {item.version === "Player Edition" ? <strong>{item.version}</strong> : item.version ?? "—"}</p>
-                </div>
-              </div>
-            ));
-        })()}
-      </div>
-        <div className="flex flex-col gap-4">
-          <div className="relative bg-muted/50 p-3 rounded-lg text-sm space-y-2">
-            <Button variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7" onClick={() => handleOpenEditModal(order)}>
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <h3 className="font-semibold mb-2">Customer Details</h3>
-            <p>{order.customer.name}</p>
-            <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
-            <p className="text-muted-foreground">{order.customer.phone}</p>
-            {order.note && (
-                <>
-                    <Separator className="my-2" />
-                    <div className="flex items-start gap-2 text-muted-foreground">
-                        <StickyNote className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600" />
-                        <p className="text-sm italic whitespace-pre-line">{order.note}</p>
-                    </div>
-                </>
-            )}
-            {isShipped ? (
-                <div className="flex items-center justify-between mt-2">
-                    <p className="font-semibold">Tracking: <span className="font-normal text-primary">{order.trackingNumber}</span></p>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => handleResetTrackingNumber(order)}>
-                        <RotateCcw className="h-4 w-4" /><span className="sr-only">Reset Tracking</span>
-                    </Button>
-                </div>
-            ) : (
-              <>
-                <Separator className="my-2" />
-                <div className="flex flex-col gap-2">
-                    <Input type="text" placeholder="Número de rastreio" value={trackingNumbers[order.id] || ''} onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)} />
-                    <Button onClick={() => handleSubmitTrackingNumber(order)} disabled={isPending}>{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit</Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+  const paginatedOrders = listToShow.slice(
+    (page - 1) * ITEMS_PER_PAGE,
+    page * ITEMS_PER_PAGE
   );
+
+  const renderOrderCard = (order: Order, isShipped = false) => {
+    // Cor da barra vertical por país
+    const countryColor =
+      order.countryCode === "PT" ? "#008000" : // Verde
+      order.countryCode === "DE" ? "#FFCE00" : // Amarelo
+      order.countryCode === "ES" ? "#C60B1E" : // Vermelho
+      "#888"; // fallback
+
+    return (
+      <Card
+        id={`order-${order.id}`}
+        key={order.id}
+        className="relative overflow-hidden rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 bg-card"
+        style={{
+          borderLeft: `8px solid ${countryColor}`,
+        }}
+      >
+        {/* Header */}
+        <CardHeader className="flex flex-row items-center justify-between p-4 bg-muted/20">
+          <div className="flex items-center gap-3 font-semibold text-card-foreground">
+            {countryFlags[order.countryCode]}
+            <span>{order.id}</span>
+          </div>
+  
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <span className="text-lg">🕒</span> {order.date}
+          </div>
+        </CardHeader>
+  
+        {/* Body */}
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
+          {/* ITEMS */}
+          <div className="md:col-span-2 flex flex-col gap-4">
+            {Array.isArray(order.items) &&
+              order.items
+                .filter((it) => it && typeof it === "object")
+                .map((item, index) => {
+                  const validThumb =
+                    item.thumbnailUrl &&
+                    item.thumbnailUrl !== "null" &&
+                    item.thumbnailUrl !== "undefined" &&
+                    item.thumbnailUrl.trim() !== "" &&
+                    item.thumbnailUrl.startsWith("http");
+  
+                  return (
+                    <div key={index} className="flex items-start gap-4">
+                      <div className="thumb-wrapper">
+                        <img
+                          src={
+                            validThumb
+                              ? item.thumbnailUrl
+                              : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A"
+                          }
+                          alt={item.name || "Item"}
+                          className="thumb-image rounded-md shadow-sm"
+                        />
+                      </div>
+  
+                      <div className="text-sm leading-tight space-y-1">
+                        <p className="font-semibold">{item.name ?? "Unnamed Product"}</p>
+                        <p className="text-muted-foreground">ID: {item.productId ?? "—"}</p>
+                        <p className="text-muted-foreground">Customization: {item.customization ?? "—"}</p>
+                        <p className="text-muted-foreground">Size: {item.size ?? "—"}</p>
+                        <p className="text-muted-foreground">Qty: {item.quantity ?? 0}</p>
+                        <p className="text-muted-foreground">
+                          Version:{" "}
+                          {item.version === "Player Edition" ? (
+                            <strong>{item.version}</strong>
+                          ) : (
+                            item.version ?? "—"
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+          </div>
+  
+          {/* CUSTOMER + TRACKING */}
+          <div className="flex flex-col gap-4">
+            <div className="relative bg-muted/40 p-4 rounded-lg text-sm shadow-inner space-y-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 h-7 w-7"
+                onClick={() => handleOpenEditModal(order)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+  
+              <h3 className="font-semibold mb-1">Customer Details</h3>
+  
+              <p>{order.customer.name}</p>
+              <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
+              <p className="text-muted-foreground">{order.customer.phone}</p>
+  
+              {order.note && (
+                <>
+                  <Separator className="my-2" />
+                  <div className="flex items-start gap-2 text-muted-foreground">
+                    <StickyNote className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600" />
+                    <p className="text-sm italic whitespace-pre-line">{order.note}</p>
+                  </div>
+                </>
+              )}
+  
+              {/* TRACKING SECTION */}
+              {isShipped ? (
+                <div className="flex items-center justify-between mt-3">
+                  <p className="font-semibold">
+                    Tracking:{" "}
+                    <span className="font-normal text-primary">{order.trackingNumber}</span>
+                  </p>
+  
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleResetTrackingNumber(order)}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Separator className="my-2" />
+  
+                  <div className="flex flex-col gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Tracking Number"
+                      value={trackingNumbers[order.id] || ""}
+                      onChange={(e) => handleTrackingNumberChange(order.id, e.target.value)}
+                    />
+  
+                    <Button onClick={() => handleSubmitTrackingNumber(order)} disabled={isPending}>
+                      {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Submit
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const clearDateFilter = () => {
     setStartDate({ day: '', month: '' });
@@ -459,6 +599,13 @@ export default function MasterShopifyOrdersPage() {
 
   return (
     <>
+      {isExporting && (
+        <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-white" />
+          <p className="text-white text-lg font-semibold">A gerar o PDF…</p>
+        </div>
+      )}  
+
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
          <DialogContent>
           <DialogHeader>
@@ -478,6 +625,63 @@ export default function MasterShopifyOrdersPage() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+        <DialogContent className="p-0 max-w-lg">
+          <div className="border-b p-3 flex items-center gap-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search orders…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="border-none shadow-none focus-visible:ring-0"
+            />
+          </div>
+
+          <div className="max-h-[300px] overflow-y-auto">
+            {searchQuery.trim().length === 0 ? (
+              <p className="text-center text-muted-foreground p-4 text-sm">
+                Type to search for an order…
+              </p>
+            ) : (
+              <div className="flex flex-col">
+                {orders
+                  .filter((o) => {
+                    const q = searchQuery.toLowerCase();
+                    return (
+                      o.id.toLowerCase().includes(q) ||
+                      o.customer.name.toLowerCase().includes(q)
+                    );
+                  })
+                  .slice(0, 12)
+                  .map((order) => (
+                    <button
+                      key={order.id}
+                      className="text-left p-3 hover:bg-muted transition flex justify-between"
+                      onClick={() => {
+                        // Close modal
+                        setIsSearchOpen(false);
+                        // Scroll to order card
+                        setTimeout(() => {
+                          const el = document.getElementById(`order-${order.id}`);
+                          if (el) el.scrollIntoView({ behavior: "smooth" });
+                        }, 150);
+                      }}
+                    >
+                      <div>
+                        <p className="font-semibold">{order.id}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {order.customer.name}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{order.status}</span>
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -569,7 +773,18 @@ export default function MasterShopifyOrdersPage() {
             </PopoverContent>
           </Popover>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+  
+            {/* 🔍 Search Button */}
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setIsSearchOpen(true)}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+
+            {/* ▼ Export Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -577,6 +792,7 @@ export default function MasterShopifyOrdersPage() {
                   <span className="sr-only">Export Orders</span>
                 </Button>
               </DropdownMenuTrigger>
+
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={() => handleExportPackingSheetPDF("pending")}>
                   Pending Orders (PDF)
@@ -589,6 +805,7 @@ export default function MasterShopifyOrdersPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
           </div>
         </div>
       
@@ -602,27 +819,64 @@ export default function MasterShopifyOrdersPage() {
             </Card>
         )}
 
-        {pendingOrders.length > 0 && (
-          <section>
-            <h2 className="mb-4 flex items-baseline gap-2 font-headline text-xl font-semibold">
-              Pending Production
-              {pendingOrders.length > 0 && <span className="font-medium text-muted-foreground">{pendingOrders.length}</span>}
-            </h2>
-            <div className="flex flex-col gap-4">{pendingOrders.map(order => renderOrderCard(order, false))}</div>
-          </section>
-        )}
-        
-        {pendingOrders.length > 0 && shippedOrders.length > 0 && <Separator />}
+        {/* Tabs */}
+        <div className="flex items-center gap-4 mt-6">
+          <Button 
+            variant={orderTab === "pending" ? "default" : "outline"}
+            onClick={() => { setOrderTab("pending"); setPage(1); }}
+          >
+            Pending Orders ({pendingOrders.length})
+          </Button>
 
-        {shippedOrders.length > 0 && (
-          <section>
-            <h2 className="mb-4 flex items-baseline gap-2 font-headline text-xl font-semibold">
-              Shipped Orders
-              {shippedOrders.length > 0 && <span className="font-medium text-muted-foreground">{shippedOrders.length}</span>}
-            </h2>
-            <div className="flex flex-col gap-4">{shippedOrders.map(order => renderOrderCard(order, true))}</div>
-          </section>
-        )}
+          <Button 
+            variant={orderTab === "shipped" ? "default" : "outline"}
+            onClick={() => { setOrderTab("shipped"); setPage(1); }}
+          >
+            Shipped Orders ({shippedOrders.length})
+          </Button>
+        </div>
+
+        {/* Selected Tab Content */}
+        <div className="mt-6">
+          <h2 className="text-xl font-semibold mb-4">
+            {orderTab === "pending" ? "Pending Production" : "Shipped Orders"}
+          </h2>
+
+          {paginatedOrders.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No orders found.</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {paginatedOrders.map(order =>
+                renderOrderCard(order, orderTab === "shipped")
+              )}
+            </div>
+          )}
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <Button 
+                variant="outline" 
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+              >
+                Previous
+              </Button>
+
+              <span className="text-sm text-muted-foreground">
+                Page {page} / {totalPages}
+              </span>
+
+              <Button 
+                variant="outline" 
+                disabled={page === totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </div>
+
       </div>
     </>
   );
