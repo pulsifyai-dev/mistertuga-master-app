@@ -55,8 +55,8 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
 
-// ajusta para 300 conforme te parecer melhor
-const MAX_ORDERS_PER_PDF = 300; 
+// ajusta para 200 conforme te parecer melhor
+const MAX_ORDERS_PER_PDF = 200; 
 
 const PDF_LOADING_MESSAGES = [
   "Making your PDF look pretty...",
@@ -881,7 +881,7 @@ export default function MasterShopifyOrdersPage() {
 
               {/* NOTA – SEMPRE visível, se existir */}
               {order.note && (
-                <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-500/5 border border-amber-500/20 p-2">
+                <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-500/20 border border-amber-500/20 p-2">
                   <StickyNote className="h-3.5 w-3.5 mt-0.5 text-amber-400" />
                   <p className="text-[11px] italic whitespace-pre-line">
                     {order.note}
@@ -891,13 +891,13 @@ export default function MasterShopifyOrdersPage() {
 
               {/* PAINEL COLAPSADO – Customer Details + Note + Edit */}
               {isExpanded && (
-                <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold">Customer Details</p>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 hover:bg-white/10"
+                      className="h-7 w-7 hover:bg-purple-500/20"
                       type="button"
                       onClick={() => handleOpenEditModal(order)}
                     >
@@ -975,7 +975,7 @@ export default function MasterShopifyOrdersPage() {
         </div>
       )}
 
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+      <Dialog open={isEditModalOpen}   onOpenChange={setIsEditModalOpen}>
          <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Order {editingOrder?.id}</DialogTitle>
@@ -1080,11 +1080,12 @@ export default function MasterShopifyOrdersPage() {
               >
                 {/* Barra de pesquisa que expande para a esquerda */}
                 <div
-                  className={
-                    "flex items-center overflow-hidden bg-black/40 border border-white/15 rounded-full px-2 py-1 " +
-                    (isSearchExpanded ? "justify-start" : "justify-end")
-                  }
-                >
+                    className={`
+                      flex items-center overflow-hidden rounded-full px-2 py-1 transition-all duration-200
+                      ${isSearchExpanded ? "bg-black/40 border border-white/15 justify-start" : "bg-transparent border-transparent justify-end"}
+                    `}
+                  >
+
                   {isSearchExpanded && (
                     <input
                       ref={searchInputRef}
@@ -1105,7 +1106,7 @@ export default function MasterShopifyOrdersPage() {
                       }
                       setIsSearchExpanded((prev) => !prev);
                     }}
-                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10"
+                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-purple-500/20"
                   >
                     <Search className="h-4 w-4 text-muted-foreground" />
                     <span className="sr-only">Search orders</span>
@@ -1161,6 +1162,7 @@ export default function MasterShopifyOrdersPage() {
                 size="icon"
                 onClick={handleExportPackingSheetPDF}
                 disabled={isExporting}
+                className="hover:bg-purple-500/50"
               >
                 <Download className="h-4 w-4" />
                 <span className="sr-only">Export Orders</span>

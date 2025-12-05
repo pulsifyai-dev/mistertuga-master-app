@@ -4,6 +4,15 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { ArrowUpRight, ArrowDownRight, Plus, Check, X as XIcon } from 'lucide-react';
 
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
 import { useFirebase } from '@/firebase';
 import {
   Card,
@@ -16,12 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
-type ExpenseKey =
-  | 'metaAds'
-  | 'tiktokAds'
-  | 'klaviyo'
-  | 'collaborators'
-  | 'variableCosts';
+type ExpenseKey = 'metaAds' | 'tiktokAds' | 'klaviyo' | 'collaborators' | 'variableCosts';
 
 interface ExpenseItem {
   label: string;
@@ -29,17 +33,18 @@ interface ExpenseItem {
   extra: number;
 }
 
-interface DailyNetPoint {
+// 👉 Novo tipo para cada ponto diário
+interface DailyNetProfitPoint {
   date: string; // "2025-12-01"
-  net: number;
+  net: number;  // lucro líquido nesse dia
 }
 
 interface ProfitStatsDoc {
-  periodLabel: string;
+  periodLabel: string; // Ex: "Últimos 30 dias"
   currency: 'EUR';
   totalRevenue: number;
   expenses: Record<ExpenseKey, ExpenseItem>;
-  dailyNetProfit?: DailyNetPoint[];
+  dailyNetProfit: DailyNetProfitPoint[]; // 👈 novo campo
 }
 
 // ----- Dummy inicial (grava se não existir) -----
@@ -86,6 +91,44 @@ const dummyProfitDoc: ProfitStatsDoc = {
   },
 };
 
+function buildDummyDailyNetProfit(
+  totalRevenue: number,
+  expenses: Record<ExpenseKey, ExpenseItem>
+): DailyNetProfitPoint[] {
+  // Total de despesas (base + extra)
+  const totalExpenses = (Object.keys(expenses) as ExpenseKey[]).reduce(
+    (acc, key) => acc + expenses[key].base + expenses[key].extra,
+    0
+  );
+
+  const totalNet = totalRevenue - totalExpenses;
+
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-11 (mês atual)
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  if (daysInMonth <= 0) return [];
+
+  const basePerDay = totalNet / daysInMonth;
+
+  const points: DailyNetProfitPoint[] = [];
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    // Pequena variação para não ficar linha “flat”
+    const jitter = basePerDay * 0.35 * (Math.random() - 0.5) * 2; // +/- 35%
+    const value = Math.round((basePerDay + jitter) * 100) / 100;
+
+    points.push({
+      date: date.toISOString().slice(0, 10), // "YYYY-MM-DD"
+      net: value,
+    });
+  }
+
+  return points;
+}
+
 const expenseAccentColors: Record<ExpenseKey, string> = {
   metaAds: "#a855f7",        // roxo
   tiktokAds: "#ec4899",      // rosa
@@ -106,7 +149,7 @@ function formatCurrency(value: number, currency: string = 'EUR') {
 /**
  * Gráfico de linha suave, minimal, ao estilo do dashboard do Shopify.
  */
-function NetProfitLineChart({ points }: { points?: DailyNetPoint[] }) {
+function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
   if (!Array.isArray(points) || points.length === 0) {
     return (
       <div className="flex h-24 items-center justify-center text-[11px] text-muted-foreground">
@@ -115,81 +158,78 @@ function NetProfitLineChart({ points }: { points?: DailyNetPoint[] }) {
     );
   }
 
+  // ordenar por data e preparar dados para o gráfico
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
-  const values = sorted.map((p) => p.net);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const n = sorted.length;
-
-  const getX = (idx: number) => (n === 1 ? 50 : (idx / (n - 1)) * 100);
-  const getY = (value: number) => {
-    const norm = (value - min) / range;
-    const top = 15;
-    const bottom = 90;
-    return bottom - norm * (bottom - top);
-  };
-
-  const pathD = sorted
-    .map((p, idx) => {
-      const x = getX(idx);
-      const y = getY(p.net);
-      return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
-    })
-    .join(' ');
+  const chartData = sorted.map((p) => {
+    const d = new Date(p.date);
+    const dayLabel = d.getDate().toString().padStart(2, '0');
+    return {
+      day: dayLabel,
+      net: p.net,
+    };
+  });
 
   return (
-    <div className="mt-3 h-28 w-full">
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="h-full w-full"
-      >
-        <defs>
-          <linearGradient id="netProfitLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#a855f7" />
-            <stop offset="100%" stopColor="#22d3ee" />
-          </linearGradient>
-          <linearGradient id="netProfitFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(168,85,247,0.28)" />
-            <stop offset="100%" stopColor="rgba(15,23,42,0)" />
-          </linearGradient>
-        </defs>
+    <div className="mt-4 h-32 w-full md:h-40">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart
+          data={chartData}
+          margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+        >
+          <defs>
+            {/* gradiente da linha – só roxo */}
+            <linearGradient id="netProfitStroke" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#a855f7" />
+              <stop offset="100%" stopColor="#a855f7" />
+            </linearGradient>
 
-        {/* Área */}
-        <path
-          d={`${pathD} L 100 100 L 0 100 Z`}
-          fill="url(#netProfitFill)"
-          stroke="none"
-        />
+            {/* gradiente do preenchimento – roxo que desvanece */}
+            <linearGradient id="netProfitFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(168,85,247,0.35)" />
+              <stop offset="100%" stopColor="rgba(168,85,247,0)" />
+            </linearGradient>
+          </defs>
 
-        {/* Linha */}
-        <path
-          d={pathD}
-          fill="none"
-          stroke="url(#netProfitLine)"
-          strokeWidth={1.7}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+          <XAxis
+            dataKey="day"
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 10, fill: '#64748b' }}
+            padding={{ left: 4, right: 4 }}
+          />
 
-        {/* Pontos */}
-        {sorted.map((p, idx) => {
-          const x = getX(idx);
-          const y = getY(p.net);
-          return (
-            <circle
-              key={p.date}
-              cx={x}
-              cy={y}
-              r={1.3}
-              fill="#020617"
-              stroke="#22d3ee"
-              strokeWidth={0.5}
-            />
-          );
-        })}
-      </svg>
+          <YAxis hide domain={['dataMin', 'dataMax']} />
+
+          <Tooltip
+            cursor={{ stroke: 'rgba(148,163,184,0.25)', strokeWidth: 1 }}
+            contentStyle={{
+              backgroundColor: 'rgba(15,23,42,0.95)',
+              borderRadius: 8,
+              border: '1px solid rgba(148,163,184,0.35)',
+              padding: '6px 8px',
+            }}
+            labelStyle={{
+              fontSize: 10,
+              color: '#94a3b8',
+              marginBottom: 2,
+            }}
+            formatter={(value: any) => [
+              formatCurrency(value as number, 'EUR'),
+              'Net Profit',
+            ]}
+          />
+
+          <Area
+            type="monotone"
+            dataKey="net"
+            stroke="url(#netProfitStroke)"
+            strokeWidth={2}
+            fill="url(#netProfitFill)"
+            dot={false}
+            activeDot={{ r: 3 }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -220,29 +260,57 @@ export default function ProfitStatsPage() {
       setLoading(false);
       return;
     }
-
+  
     let cancelled = false;
-
+  
     const load = async () => {
       try {
         const ref = doc(firestore, 'metrics', 'profit-stats');
         const snap = await getDoc(ref);
-
+  
         if (!snap.exists()) {
-          await setDoc(ref, dummyProfitDoc);
-          if (!cancelled) setData(dummyProfitDoc);
+          // 👉 1) documento não existe → cria com dummy + dailyNetProfit
+          const dailyNet = buildDummyDailyNetProfit(
+            dummyProfitDoc.totalRevenue,
+            dummyProfitDoc.expenses
+          );
+  
+          const docToSave: ProfitStatsDoc = {
+            ...dummyProfitDoc,
+            dailyNetProfit: dailyNet,
+          };
+  
+          await setDoc(ref, docToSave);
+          if (!cancelled) {
+            setData(docToSave);
+          }
         } else {
-          const raw = snap.data() as ProfitStatsDoc;
-          if (!cancelled) setData(raw);
+          // 👉 2) documento existe → garantir que tem dailyNetProfit
+          const raw = snap.data() as any;
+  
+          if (!raw.dailyNetProfit || !Array.isArray(raw.dailyNetProfit)) {
+            const dailyNet = buildDummyDailyNetProfit(
+              raw.totalRevenue,
+              raw.expenses
+            );
+  
+            await updateDoc(ref, { dailyNetProfit: dailyNet });
+            raw.dailyNetProfit = dailyNet;
+          }
+  
+          if (!cancelled) {
+            setData(raw as ProfitStatsDoc);
+          }
         }
-      } catch (err) {
-        console.error('Erro a carregar profit-stats:', err);
+      } catch (error) {
+        console.error('Erro a carregar profit-stats:', error);
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-
+  
     load();
+  
     return () => {
       cancelled = true;
     };
@@ -256,12 +324,31 @@ export default function ProfitStatsPage() {
     );
   }
 
-  const { currency, periodLabel, totalRevenue, expenses } = data;
-
   const rawDaily = (data as any).dailyNetProfit;
-  const dailyNetProfit: DailyNetPoint[] = Array.isArray(rawDaily)
+  const dailyNetProfit: DailyNetProfitPoint[] = Array.isArray(rawDaily)
     ? rawDaily
     : [];
+
+  const { currency, periodLabel, totalRevenue, expenses } = data;
+  // Garantir que o array existe e vem ordenado por data
+  const safeDailyNet = Array.isArray(dailyNetProfit) ? dailyNetProfit : [];
+
+  const sortedDailyNet = [...safeDailyNet].sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
+
+  // Formato final para o Recharts
+  const chartData =
+  sortedDailyNet.length === 0
+    ? Array.from({ length: 10 }, (_, i) => ({
+        day: (i + 1).toString().padStart(2, "0"),
+        net: 0,
+      }))
+    : sortedDailyNet.map((point) => {
+        const d = new Date(point.date);
+        const dayLabel = d.getDate().toString().padStart(2, "0");
+        return { day: dayLabel, net: point.net };
+      });
 
   const totalExpenses = (Object.keys(expenses) as ExpenseKey[]).reduce(
     (acc, key) => {
@@ -373,9 +460,7 @@ export default function ProfitStatsPage() {
               <p className="text-4xl md:text-5xl font-semibold tabular-nums tracking-tight">
                 {formatCurrency(netProfit, currency)}
               </p>
-              <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground">
-                {netMargin.toFixed(1)}%
-              </span>
+
             </div>
 
             <div className="flex gap-4 text-[11px] text-muted-foreground">
@@ -385,18 +470,22 @@ export default function ProfitStatsPage() {
           </div>
 
           <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[11px]">
-            {trendPositive ? (
-              <>
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
-                <span className="text-emerald-300">Saudável</span>
-              </>
-            ) : (
-              <>
-                <ArrowDownRight className="h-3.5 w-3.5 text-red-400" />
-                <span className="text-red-300">Atenção</span>
-              </>
-            )}
-          </div>
+          {trendPositive ? (
+            <>
+              <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="text-emerald-300">
+                {netMargin.toFixed(1)}%
+              </span>
+            </>
+          ) : (
+            <>
+              <ArrowDownRight className="h-3.5 w-3.5 text-red-400" />
+              <span className="text-red-300">
+                {netMargin.toFixed(1)}%
+              </span>
+            </>
+          )}
+        </div>
         </CardHeader>
 
         <CardContent className="pt-0">
