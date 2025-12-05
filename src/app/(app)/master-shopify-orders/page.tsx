@@ -489,7 +489,7 @@ export default function MasterShopifyOrdersPage() {
           pdf.setFontSize(14);
           pdf.setFont("helvetica", "bold");
           pdf.text(
-            toText(`Order ${order.id.replace(/^#/, "")} - ${order.date}`),
+            toText(`Order ${order.id} - ${order.date}`),
             marginX,
             cursorY
           );
@@ -795,8 +795,8 @@ export default function MasterShopifyOrdersPage() {
                         <p className="font-semibold">{item.name ?? "Unnamed Product"}</p>
                         <p className="text-muted-foreground">ID: {item.productId ?? "—"}</p>
                         <p className="text-muted-foreground">Customization: {item.customization ?? "—"}</p>
-                        <p className="text-muted-foreground">Size: {item.size ?? "—"}</p>
-                        <p className="text-muted-foreground">Qty: {item.quantity ?? 0}</p>
+                        <p className="text-muted-foreground">Size: {item.size ?? "—"}  /  Qty: {item.quantity ?? 0}</p>
+                        {/* <p className="text-muted-foreground">Qty: {item.quantity ?? 0}</p> */}
                         <p className="text-muted-foreground">
                           Version:{" "}
                           {item.version === "Player Edition" ? (

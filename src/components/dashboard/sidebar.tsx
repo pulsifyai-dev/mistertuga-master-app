@@ -9,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   BarChart3,
@@ -45,18 +46,23 @@ const sidebarItems = [
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
+  const { isMobile, setOpen } = useSidebar();   // ⬅️ usar isMobile
 
-  // para o botão de settings ficar activo quando estás em /settings
   const isSettingsActive = pathname === "/settings";
 
-  // classe base para TODOS os botões
   const baseButtonClasses =
     "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors";
-
   const activeButtonClasses =
     "bg-neutral-900/80 text-white border border-white/15 shadow-sm";
   const inactiveButtonClasses =
     "text-muted-foreground hover:bg-white/5";
+
+  // Fecha a sidebar apenas em mobile
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpen(false);
+    }
+  };
 
   return (
     <>
@@ -74,7 +80,6 @@ export default function DashboardSidebar() {
         </div>
       </SidebarHeader>
 
-      {/* px-4 para alinhar com o footer e garantir o mesmo espaçamento lateral do highlight */}
       <SidebarContent className="px-4 py-3">
         <SidebarMenu>
           {sidebarItems.map((item) => {
@@ -92,7 +97,7 @@ export default function DashboardSidebar() {
                     (isActive ? activeButtonClasses : inactiveButtonClasses)
                   }
                 >
-                  <Link href={item.href}>
+                  <Link href={item.href} onClick={handleNavClick}>
                     <Icon className="h-4 w-4" />
                     <span className="truncate">{item.label}</span>
                   </Link>
@@ -114,7 +119,7 @@ export default function DashboardSidebar() {
                 (isSettingsActive ? activeButtonClasses : inactiveButtonClasses)
               }
             >
-              <Link href="/settings">
+              <Link href="/settings" onClick={handleNavClick}>
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>
               </Link>
