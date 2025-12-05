@@ -55,6 +55,9 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
 
+// ajusta para 300 conforme te parecer melhor
+const MAX_ORDERS_PER_PDF = 300; 
+
 const PDF_LOADING_MESSAGES = [
   "Making your PDF look pretty...",
   "Printing pixels on invisible paper...",
@@ -319,9 +322,10 @@ export default function MasterShopifyOrdersPage() {
 
   const handleExportPackingSheetPDF = async () => {
     setIsExporting(true);
-
-    // Cache apenas para este export
+  
+    // Cache apenas para este export (partilhada entre todos os PDFs)
     const imageCache: Record<string, string> = {};
+  
     const loadImageAsDataURL = async (url: string): Promise<string> => {
       if (imageCache[url]) return imageCache[url];
   
@@ -345,12 +349,10 @@ export default function MasterShopifyOrdersPage() {
       return s.trim() === "" ? fallback : s;
     };
   
-    setIsExporting(true);
-  
     try {
       // usa sempre os filtros já aplicados (country + date) + tab atual
       const ordersToExport =
-        orderTab === "pending" ? pendingOrders : shippedOrders; // estes já vêm de filteredOrders
+        orderTab === "pending" ? pendingOrders : shippedOrders;
   
       if (ordersToExport.length === 0) {
         toast({
@@ -360,262 +362,277 @@ export default function MasterShopifyOrdersPage() {
         return;
       }
   
-      // 2) Setup PDF
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const marginX = 10;
-      const marginY = 10;
-      const rowHeight = 26;
-      const thumbSize = 18;
+      const total = ordersToExport.length;
   
-      const columns = [
-        { key: "thumb", label: "Thumbnail", width: 26 },
-        { key: "product", label: "Product", width: 68 },
-        { key: "size", label: "Size", width: 12 },
-        { key: "qty", label: "Qty", width: 12 },
-        { key: "version", label: "Version", width: 25 },
-        {
-          key: "custom",
-          label: "Customization",
-          width:
-            pageWidth -
-            marginX * 2 -
-            (26 + 68 + 12 + 12 + 25),
-        },
-      ];
-
-      // 🔹 X inicial de cada coluna (mesmo que uses em várias páginas)
-      const colXPositions: number[] = [];
-      {
-        let runningX = marginX;
-        for (const col of columns) {
-          colXPositions.push(runningX);
-          runningX += col.width;
-        }
+      // dividir em batches
+      const chunks: Order[][] = [];
+      for (let i = 0; i < total; i += MAX_ORDERS_PER_PDF) {
+        chunks.push(ordersToExport.slice(i, i + MAX_ORDERS_PER_PDF));
       }
   
-      let firstPage = true;
+      const todayStr = new Date().toISOString().split("T")[0];
+      const baseName =
+        orderTab === "pending" ? "pending_orders" : "shipped_orders";
   
-      for (const order of ordersToExport) {
-        if (!firstPage) {
-          pdf.addPage();
-        }
-        firstPage = false;
+      // gerar um PDF por batch
+      for (let batchIndex = 0; batchIndex < chunks.length; batchIndex++) {
+        const batchOrders = chunks[batchIndex];
+        const partNumber = batchIndex + 1;
+        const totalParts = chunks.length;
   
-        let cursorY = marginY;
+        const pdf = new jsPDF("p", "mm", "a4");
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const marginX = 10;
+        const marginY = 10;
+        const rowHeight = 26;
+        const thumbSize = 18;
   
-        // ---------- HEADER DA ENCOMENDA ----------
-        pdf.setFontSize(14);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(
-          toText(`Order ${order.id.replace(/^#/, "")} - ${order.date}`),
-          marginX,
-          cursorY
-        );
-  
-        cursorY += 8;
-  
-        pdf.setFontSize(11);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Customer", marginX, cursorY);
-        cursorY += 5;
-  
-        pdf.setFont("helvetica", "normal");
-  
-        const addressLines = (order.customer.address || "")
-          .split("\n")
-          .filter((l) => l.trim() !== "");
-  
-        const customerLines = [
-          toText(order.customer.name),
-          ...addressLines.map((l) => toText(l)),
-          `Phone: ${toText(order.customer.phone)}`,
-          "",
-          `Status: ${toText(order.status)}`,
-          `Tracking: ${toText(order.trackingNumber, " ")}`,
+        const columns = [
+          { key: "thumb", label: "Thumbnail", width: 26 },
+          { key: "product", label: "Product", width: 68 },
+          { key: "size", label: "Size", width: 12 },
+          { key: "qty", label: "Qty", width: 12 },
+          { key: "version", label: "Version", width: 25 },
+          {
+            key: "custom",
+            label: "Customization",
+            width:
+              pageWidth -
+              marginX * 2 -
+              (26 + 68 + 12 + 12 + 25),
+          },
         ];
   
-        customerLines.forEach((line) => {
-          pdf.text(line, marginX, cursorY);
-          cursorY += 4.5;
-        });
-  
-        // ---------- ESPAÇO + TÍTULO "ITEMS" ----------
-        cursorY += 8; // mais respiro depois de Tracking
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Items", marginX, cursorY);
-  
-        cursorY += 6; // espaço entre título e tabela
-  
-        // ---------- CABEÇALHO DA TABELA ----------
-        pdf.setFontSize(10);
-        pdf.setFont("helvetica", "bold");
-  
-        let colX = marginX;
-        columns.forEach((col) => {
-          pdf.rect(colX, cursorY, col.width, 8);
-          pdf.text(col.label, colX + 2, cursorY + 5);
-          colX += col.width;
-        });
-  
-        cursorY += 8;
-        pdf.setFont("helvetica", "normal");
-  
-        // ---------- LINHAS DA TABELA ----------
-        const items = (order.items || []).filter(
-          (it) => it && typeof it === "object"
-        );
-  
-        for (const item of items) {
-          // Se não couber mais uma linha, nova página com header de continuação
-          if (cursorY + rowHeight > pageHeight - marginY) {
-            pdf.addPage();
-  
-            cursorY = marginY;
-            pdf.setFontSize(12);
-            pdf.setFont("helvetica", "bold");
-            pdf.text(
-              toText(`Order ${order.id.replace(/^#/, "")} — (cont.)`),
-              marginX,
-              cursorY
-            );
-  
-            cursorY += 6;
-            pdf.setFontSize(10);
-            pdf.setFont("helvetica", "bold");
-  
-            let headerX = marginX;
-            columns.forEach((col) => {
-              pdf.rect(headerX, cursorY, col.width, 8);
-              pdf.text(col.label, headerX + 2, cursorY + 5);
-              headerX += col.width;
-            });
-  
-            cursorY += 8;
-            pdf.setFont("helvetica", "normal");
+        // X inicial de cada coluna
+        const colXPositions: number[] = [];
+        {
+          let runningX = marginX;
+          for (const col of columns) {
+            colXPositions.push(runningX);
+            runningX += col.width;
           }
-  
-          // Caixa da linha
-          let cellX = marginX;
-          columns.forEach((col) => {
-            pdf.rect(cellX, cursorY, col.width, rowHeight);
-            cellX += col.width;
-          });
-  
-          // Thumbnail
-          const validThumb =
-            item.thumbnailUrl &&
-            item.thumbnailUrl !== "null" &&
-            item.thumbnailUrl !== "undefined" &&
-            item.thumbnailUrl.trim() !== "" &&
-            item.thumbnailUrl.startsWith("http");
-  
-          const thumbUrl = validThumb
-            ? item.thumbnailUrl
-            : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
-  
-          try {
-            const imgData = await loadImageAsDataURL(thumbUrl);
-            pdf.addImage(
-              imgData,
-              "JPEG",
-              marginX + 4,
-              cursorY + 4,
-              thumbSize,
-              thumbSize
-            );
-          } catch (e) {
-            console.error("Erro ao carregar thumbnail", e);
-          }
-  
-          // ---------- TEXTO NAS COLUNAS ----------
-          const baseY = cursorY + 6;
-
-          const productName = toText(item.name);
-          const sizeText = toText(item.size);
-          const qtyText = toText(item.quantity ?? 0, "0");
-          const versionText = toText(item.version);
-          const customizationText = toText(item.customization);
-
-          // X de cada coluna
-          const thumbX = colXPositions[0];
-          const productX = colXPositions[1];
-          const sizeX = colXPositions[2];
-          const qtyX = colXPositions[3];
-          const versionX = colXPositions[4];
-          const customX = colXPositions[5];
-
-          // Product (esquerda, com maxWidth)
-          pdf.setFont("helvetica", "normal");
-          pdf.text(productName, productX + 2, baseY, {
-            maxWidth: columns[1].width - 4,
-          });
-
-          // Size (centrado na coluna)
-          const sizeCenterX = sizeX + columns[2].width / 2;
-          pdf.text(sizeText, sizeCenterX, baseY, { align: "center" });
-
-          // Qty (centrado na coluna)
-          const qtyCenterX = qtyX + columns[3].width / 2;
-          pdf.text(qtyText, qtyCenterX, baseY, { align: "center" });
-
-          // Version (Player Edition em negrito)
-          if (versionText === "Player Edition") {
-            pdf.setFont("helvetica", "bold");
-          } else {
-            pdf.setFont("helvetica", "normal");
-          }
-          pdf.text(versionText, versionX + 2, baseY, {
-            maxWidth: columns[4].width - 4,
-          });
-
-          // Customization (normal, esquerda)
-          pdf.setFont("helvetica", "normal");
-          pdf.text(customizationText, customX + 2, baseY, {
-            maxWidth: columns[5].width - 4,
-          });
-  
-          cursorY += rowHeight;
         }
   
-        // ---------- NOTAS ----------
-        if (order.note) {
-          if (cursorY + 20 > pageHeight - marginY) {
+        let firstPage = true;
+  
+        for (const order of batchOrders) {
+          if (!firstPage) {
             pdf.addPage();
-            cursorY = marginY + 10;
           }
+          firstPage = false;
+  
+          let cursorY = marginY;
+  
+          // ---------- HEADER DA ENCOMENDA ----------
+          pdf.setFontSize(14);
+          pdf.setFont("helvetica", "bold");
+          pdf.text(
+            toText(`Order ${order.id.replace(/^#/, "")} - ${order.date}`),
+            marginX,
+            cursorY
+          );
+  
+          cursorY += 8;
   
           pdf.setFontSize(11);
           pdf.setFont("helvetica", "bold");
-          pdf.text("Notes", marginX, cursorY + 5);
+          pdf.text("Customer", marginX, cursorY);
+          cursorY += 5;
   
           pdf.setFont("helvetica", "normal");
   
-          const noteLines = pdf.splitTextToSize(
-            order.note,
-            pageWidth - marginX * 2
-          );
+          const addressLines = (order.customer.address || "")
+            .split("\n")
+            .filter((l) => l.trim() !== "");
   
-          pdf.rect(
-            marginX,
-            cursorY + 7,
-            pageWidth - marginX * 2,
-            noteLines.length * 5 + 6
-          );
+          const customerLines = [
+            toText(order.customer.name),
+            ...addressLines.map((l) => toText(l)),
+            `Phone: ${toText(order.customer.phone)}`,
+            "",
+            `Status: ${toText(order.status)}`,
+            `Tracking: ${toText(order.trackingNumber, " ")}`,
+          ];
   
-          let noteY = cursorY + 12;
-          noteLines.forEach((line) => {
-            pdf.text(line, marginX + 3, noteY);
-            noteY += 5;
+          customerLines.forEach((line) => {
+            pdf.text(line, marginX, cursorY);
+            cursorY += 4.5;
           });
-        }
-      }
   
-      pdf.save(
-        `${orderTab}_orders_${new Date().toISOString().split("T")[0]}.pdf`
-      );
+          // ---------- ESPAÇO + TÍTULO "ITEMS" ----------
+          cursorY += 8;
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.text("Items", marginX, cursorY);
+  
+          cursorY += 6;
+  
+          // ---------- CABEÇALHO DA TABELA ----------
+          pdf.setFontSize(10);
+          pdf.setFont("helvetica", "bold");
+  
+          let colX = marginX;
+          columns.forEach((col) => {
+            pdf.rect(colX, cursorY, col.width, 8);
+            pdf.text(col.label, colX + 2, cursorY + 5);
+            colX += col.width;
+          });
+  
+          cursorY += 8;
+          pdf.setFont("helvetica", "normal");
+  
+          // ---------- LINHAS DA TABELA ----------
+          const items = (order.items || []).filter(
+            (it) => it && typeof it === "object"
+          );
+  
+          for (const item of items) {
+            // Se não couber mais uma linha, nova página com header de continuação
+            if (cursorY + rowHeight > pageHeight - marginY) {
+              pdf.addPage();
+  
+              cursorY = marginY;
+              pdf.setFontSize(12);
+              pdf.setFont("helvetica", "bold");
+              pdf.text(
+                toText(`Order ${order.id.replace(/^#/, "")} — (cont.)`),
+                marginX,
+                cursorY
+              );
+  
+              cursorY += 6;
+              pdf.setFontSize(10);
+              pdf.setFont("helvetica", "bold");
+  
+              let headerX = marginX;
+              columns.forEach((col) => {
+                pdf.rect(headerX, cursorY, col.width, 8);
+                pdf.text(col.label, headerX + 2, cursorY + 5);
+                headerX += col.width;
+              });
+  
+              cursorY += 8;
+              pdf.setFont("helvetica", "normal");
+            }
+  
+            // Caixa da linha
+            let cellX = marginX;
+            columns.forEach((col) => {
+              pdf.rect(cellX, cursorY, col.width, rowHeight);
+              cellX += col.width;
+            });
+  
+            // Thumbnail
+            const validThumb =
+              item.thumbnailUrl &&
+              item.thumbnailUrl !== "null" &&
+              item.thumbnailUrl !== "undefined" &&
+              item.thumbnailUrl.trim() !== "" &&
+              item.thumbnailUrl.startsWith("http");
+  
+            const thumbUrl = validThumb
+              ? item.thumbnailUrl
+              : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
+  
+            try {
+              const imgData = await loadImageAsDataURL(thumbUrl);
+              pdf.addImage(
+                imgData,
+                "JPEG",
+                marginX + 4,
+                cursorY + 4,
+                thumbSize,
+                thumbSize
+              );
+            } catch (e) {
+              console.error("Erro ao carregar thumbnail", e);
+            }
+  
+            // ---------- TEXTO NAS COLUNAS ----------
+            const baseY = cursorY + 6;
+  
+            const productName = toText(item.name);
+            const sizeText = toText(item.size);
+            const qtyText = toText(item.quantity ?? 0, "0");
+            const versionText = toText(item.version);
+            const customizationText = toText(item.customization);
+  
+            const productX = colXPositions[1];
+            const sizeX = colXPositions[2];
+            const qtyX = colXPositions[3];
+            const versionX = colXPositions[4];
+            const customX = colXPositions[5];
+  
+            // Product
+            pdf.setFont("helvetica", "normal");
+            pdf.text(productName, productX + 2, baseY, {
+              maxWidth: columns[1].width - 4,
+            });
+  
+            // Size centrado
+            const sizeCenterX = sizeX + columns[2].width / 2;
+            pdf.text(sizeText, sizeCenterX, baseY, { align: "center" });
+  
+            // Qty centrado
+            const qtyCenterX = qtyX + columns[3].width / 2;
+            pdf.text(qtyText, qtyCenterX, baseY, { align: "center" });
+  
+            // Version (Player Edition bold)
+            if (versionText === "Player Edition") {
+              pdf.setFont("helvetica", "bold");
+            } else {
+              pdf.setFont("helvetica", "normal");
+            }
+            pdf.text(versionText, versionX + 2, baseY, {
+              maxWidth: columns[4].width - 4,
+            });
+  
+            // Customization
+            pdf.setFont("helvetica", "normal");
+            pdf.text(customizationText, customX + 2, baseY, {
+              maxWidth: columns[5].width - 4,
+            });
+  
+            cursorY += rowHeight;
+          }
+  
+          // ---------- NOTAS ----------
+          if (order.note) {
+            if (cursorY + 20 > pageHeight - marginY) {
+              pdf.addPage();
+              cursorY = marginY + 10;
+            }
+  
+            pdf.setFontSize(11);
+            pdf.setFont("helvetica", "bold");
+            pdf.text("Notes", marginX, cursorY + 5);
+  
+            pdf.setFont("helvetica", "normal");
+  
+            const noteLines = pdf.splitTextToSize(
+              order.note,
+              pageWidth - marginX * 2
+            );
+  
+            pdf.rect(
+              marginX,
+              cursorY + 7,
+              pageWidth - marginX * 2,
+              noteLines.length * 5 + 6
+            );
+  
+            let noteY = cursorY + 12;
+            noteLines.forEach((line) => {
+              pdf.text(line, marginX + 3, noteY);
+              noteY += 5;
+            });
+          }
+        }
+  
+        const suffix = totalParts > 1 ? `_part-${partNumber}-of-${totalParts}` : "";
+        pdf.save(`${baseName}_${todayStr}${suffix}.pdf`);
+      }
     } catch (error) {
       console.error("Erro ao gerar PDF:", error);
       toast({
