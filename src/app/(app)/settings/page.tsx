@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+// 💡 MUDANÇA: Agora também importa isAdmin e isLoading
+import { useAuth } from '@/hooks/use-auth'; 
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -9,19 +10,21 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react'; // Adicionado Lock icon
 import { updateProfile, updatePassword } from 'firebase/auth';
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  // 💡 MUDANÇA: Obter isAdmin e isLoading
+  const { user, isAdmin, isLoading } = useAuth(); 
   const { firestore, auth } = useFirebase();
   const { toast } = useToast();
   const [webhookUrl, setWebhookUrl] = useState('');
   const [name, setName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  // Renomeei 'loading' para 'loadingWebhook' para maior clareza
+  const [loadingWebhook, setLoadingWebhook] = useState(true); 
+  const [savingWebhook, setSavingWebhook] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
@@ -31,24 +34,25 @@ export default function SettingsPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!firestore) return;
+    // 💡 CONDIÇÃO: Apenas tentar buscar a URL se for admin
+    if (!firestore || !isAdmin) return;
 
     const fetchWebhookUrl = async () => {
-      setLoading(true);
+      setLoadingWebhook(true);
       const settingsRef = doc(firestore, "settings", "tracking");
       const docSnap = await getDoc(settingsRef);
       if (docSnap.exists()) {
         setWebhookUrl(docSnap.data().url || '');
       }
-      setLoading(false);
+      setLoadingWebhook(false);
     };
 
     fetchWebhookUrl();
-  }, [firestore]);
+  }, [firestore, isAdmin]); // 💡 Adicionado isAdmin como dependência
 
   const handleSaveWebhook = async () => {
-    if (!firestore) return;
-    setSaving(true);
+    if (!firestore || !isAdmin) return; // Checagem final de segurança antes de tentar salvar
+    setSavingWebhook(true);
     try {
       const settingsRef = doc(firestore, "settings", "tracking");
       await setDoc(settingsRef, { url: webhookUrl });
@@ -63,7 +67,7 @@ export default function SettingsPage() {
         description: `Failed to save webhook URL: ${error.message}`,
       });
     } finally {
-      setSaving(false);
+      setSavingWebhook(false);
     }
   };
 
@@ -109,6 +113,14 @@ export default function SettingsPage() {
     }
   };
   
+  if (isLoading) {
+    return (
+        <div className="flex justify-center items-center h-[300px]">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+        </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -148,37 +160,49 @@ export default function SettingsPage() {
           </CardFooter>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Tracking Webhook</CardTitle>
-            <CardDescription>
-              Enter the URL to receive tracking number updates. A POST request will be sent with order details.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-                <div className="flex justify-center items-center h-10">
-                    <Loader2 className="h-6 w-6 animate-spin" />
+        {/* 💡 CONDIÇÃO: Renderizar o cartão do Webhook APENAS se for Admin */}
+        {isAdmin ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tracking Webhook</CardTitle>
+              <CardDescription>
+                Enter the URL to receive tracking number updates. A POST request will be sent with order details.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingWebhook ? (
+                  <div className="flex justify-center items-center h-10">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="webhook-url">Webhook URL</Label>
+                  <Input
+                    id="webhook-url"
+                    placeholder="https://example.com/webhook"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                  />
                 </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="webhook-url">Webhook URL</Label>
-                <Input
-                  id="webhook-url"
-                  placeholder="https://example.com/webhook"
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
-                />
-              </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button onClick={handleSaveWebhook} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Webhook
-            </Button>
-          </CardFooter>
-        </Card>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleSaveWebhook} disabled={savingWebhook}>
+                {savingWebhook && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Webhook
+              </Button>
+            </CardFooter>
+          </Card>
+        ) : (
+          // 💡 ALTERNATIVA: Exibir uma mensagem de Acesso Negado para o usuário básico
+          <Card className="flex flex-col items-center justify-center text-center p-8 bg-black/30 border-red-500/20">
+            <Lock className="h-8 w-8 text-red-500 mb-4" />
+            <CardTitle className="text-xl">Acesso Restrito</CardTitle>
+            <CardDescription className="mt-2">
+              Webhook management is an exclusive feature for Admins only.
+            </CardDescription>
+          </Card>
+        )}
       </div>
     </div>
   );

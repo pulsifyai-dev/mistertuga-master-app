@@ -9,6 +9,8 @@ import { Loader2 } from 'lucide-react';
 interface AuthContextType {
   user: User | null;
   role: 'ADMIN' | 'BASIC' | null;
+  // 💡 MUDANÇA 1: Adicionar isAdmin ao Contexto
+  isAdmin: boolean; 
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -43,7 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(null);
   };
   
-  const value = { user, role, loading, signOut };
+  // 💡 MUDANÇA 2: Definir isAdmin aqui (para o frontend)
+  const isAdmin = role === 'ADMIN';
+
+  // 💡 MUDANÇA 3: Exportar isAdmin no valor
+  const value = { user, role, isAdmin, loading, signOut }; 
 
   return (
     <AuthContext.Provider value={value}>
