@@ -53,9 +53,9 @@ const MONTHS = [
 ];
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
+const YEARS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR - 3 + i); 
 
-// ajusta para 200 conforme te parecer melhor
+// Define o limite máximo de pedidos por PDF, consistente com a mensagem de aviso.
 const MAX_ORDERS_PER_PDF = 200; 
 
 const PDF_LOADING_MESSAGES = [
@@ -93,6 +93,19 @@ export default function MasterShopifyOrdersPage() {
     totalOrders: number;
   } | null>(null);
   const [showSplitNotice, setShowSplitNotice] = useState(false);
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
+
+  // Date Filter State
+  const [startDate, setStartDate] = useState({ day: '', month: '', year: '' });
+  const [endDate, setEndDate] = useState({ day: '', month: '', year: '' });
+
+  // ** FUNÇÃO DE RESET CORRIGIDA **
+  const handleResetDateFilter = () => {
+    setStartDate({ day: "", month: "", year: "" });
+    setEndDate({ day: "", month: "", year: "" });
+    setIsDateFilterOpen(false); // Fecha o popover ao resetar
+  };
+
 
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [typedLoadingText, setTypedLoadingText] = useState("");
@@ -109,19 +122,6 @@ export default function MasterShopifyOrdersPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  // Date Filter State
-  const [startDate, setStartDate] = useState<{ day: string; month: string; year: string }>({
-    day: '',
-    month: '',
-    year: '',
-  });
-  const [endDate, setEndDate] = useState<{ day: string; month: string; year: string }>({
-    day: '',
-    month: '',
-    year: '',
-  });
-  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
 
   const { toast } = useToast();
   const form = useForm<EditOrderSchema>({ resolver: zodResolver(editOrderSchema) });
@@ -166,7 +166,7 @@ export default function MasterShopifyOrdersPage() {
         
         let finalDate = "";
         if (data.date instanceof Timestamp) {
-          // 🔥 Caso Firestore Timestamp
+          // Caso Firestore Timestamp
           const d = data.date.toDate();
           const yyyy = d.getFullYear();
           const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -176,25 +176,21 @@ export default function MasterShopifyOrdersPage() {
         
           finalDate = `${yyyy}-${mm}-${dd} | ${hh}:${min} PT`;
         } else {
-          // 🔥 Caso seja string que vem do Shopify ("3 de dezembro de 2025 às 23:36:17 UTC")
+          // Caso seja string que vem do Shopify ("3 de dezembro de 2025 às 23:36:17 UTC")
           const raw = String(data.date);
         
-          // Extrair hora (23:36)
           const timeMatch = raw.match(/\d{1,2}:\d{2}/);
           const time = timeMatch ? timeMatch[0] : "";
         
-          // Tentar converter a data inteira
           const parsed = new Date(raw);
         
           if (!isNaN(parsed.getTime())) {
-            // Se a string for válida para o JS, formatamos corretamente
             const yyyy = parsed.getFullYear();
             const mm = String(parsed.getMonth() + 1).padStart(2, "0");
             const dd = String(parsed.getDate()).padStart(2, "0");
         
             finalDate = `${yyyy}-${mm}-${dd}${time ? ` | ${time} PT` : ""}`;
           } else {
-            // Fallback — mantém a string original
             finalDate = raw;
           }
         }        
@@ -218,7 +214,7 @@ export default function MasterShopifyOrdersPage() {
       setLoadingMessageIndex(0);
       return;
     }
-    // ⬅️ não escrever mensagens enquanto o aviso de split está ativo
+    // não escrever mensagens enquanto o aviso de split está ativo
     if (showSplitNotice) return;
 
     const fullText = PDF_LOADING_MESSAGES[loadingMessageIndex] ?? "";
@@ -341,6 +337,7 @@ export default function MasterShopifyOrdersPage() {
       return ordersToFilter;
     }
   
+    // Mapeamento de mês por string para o índice numérico + 1
     const startMonthIndex = MONTHS.indexOf(startDate.month) + 1;
     const endMonthIndex = MONTHS.indexOf(endDate.month) + 1;
   
@@ -351,6 +348,7 @@ export default function MasterShopifyOrdersPage() {
     const startYearStr = startDate.year;
     const endYearStr = endDate.year;
   
+    // Formato YYYY-MM-DD para comparação de string
     const startKey = `${startYearStr}-${pad(startMonthIndex)}-${pad(parseInt(startDate.day, 10))}`;
     const endKey = `${endYearStr}-${pad(endMonthIndex)}-${pad(parseInt(endDate.day, 10))}`;
   
@@ -361,7 +359,8 @@ export default function MasterShopifyOrdersPage() {
       const parts = safe.split('-');
       if (parts.length !== 3) return null;
       const [y, m, d] = parts;
-      return `${y}-${m}-${pad(parseInt(d, 10))}`;
+      // Garante que o formato é YYYY-MM-DD
+      return `${y}-${pad(parseInt(m, 10))}-${pad(parseInt(d, 10))}`;
     };
   
     return ordersToFilter.filter((o) => {
@@ -375,337 +374,288 @@ export default function MasterShopifyOrdersPage() {
 
   const filteredOrders = filterOrdersByDate(activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter));
 
+  /**
+   * Função Completa de Exportação de PDF
+   * (Incluída com todas as correções de posicionamento e alinhamento)
+   */
   const handleExportPackingSheetPDF = async () => {
     setIsExporting(true);
   
-    // Cache apenas para este export (partilhada entre todos os PDFs)
     const imageCache: Record<string, string> = {};
   
     const loadImageAsDataURL = async (url: string): Promise<string> => {
-      if (imageCache[url]) return imageCache[url];
+        if (imageCache[url]) return imageCache[url];
   
-      const res = await fetch(url);
-      const blob = await res.blob();
+        const res = await fetch(url);
+        const blob = await res.blob();
   
-      return await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result as string;
-          imageCache[url] = dataUrl;
-          resolve(dataUrl);
-        };
-        reader.readAsDataURL(blob);
-      });
+        return await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const dataUrl = reader.result as string;
+                imageCache[url] = dataUrl;
+                resolve(dataUrl);
+            };
+            reader.readAsDataURL(blob);
+        });
     };
   
     const toText = (value: unknown, fallback: string = "—"): string => {
-      if (value === undefined || value === null) return fallback;
-      const s = String(value);
-      return s.trim() === "" ? fallback : s;
+        if (value === undefined || value === null) return fallback;
+        const s = String(value);
+        return s.trim() === "" ? fallback : s;
     };
   
     try {
-      // usa sempre os filtros já aplicados (country + date) + tab atual
-      const ordersToExport =
-        orderTab === "pending" ? pendingOrders : shippedOrders;
+        const ordersToExport =
+            orderTab === "pending" ? pendingOrders : shippedOrders;
   
-      if (ordersToExport.length === 0) {
-        toast({
-          title: "No Orders",
-          description: "There are no orders to export with the current filters.",
-        });
-        return;
-      }
+        if (ordersToExport.length === 0) {
+            toast({
+                title: "No Orders",
+                description: "There are no orders to export with the current filters.",
+            });
+            return;
+        }
   
-      const total = ordersToExport.length;
-
-      // dividir em batches
-      const chunks: Order[][] = [];
-      for (let i = 0; i < total; i += MAX_ORDERS_PER_PDF) {
-        chunks.push(ordersToExport.slice(i, i + MAX_ORDERS_PER_PDF));
-      }
+        const total = ordersToExport.length;
+        const chunks: Order[][] = [];
+        for (let i = 0; i < total; i += MAX_ORDERS_PER_PDF) {
+            chunks.push(ordersToExport.slice(i, i + MAX_ORDERS_PER_PDF));
+        }
       
-      // guardar info para o overlay
-      setExportChunksInfo({
-        totalChunks: chunks.length,
-        totalOrders: total,
-      });
+        setExportChunksInfo({
+            totalChunks: chunks.length,
+            totalOrders: total,
+        });
+  
+        const todayStr = new Date().toISOString().split("T")[0];
+        const baseName =
+            orderTab === "pending" ? "pending_orders" : "shipped_orders";
+  
+        for (let batchIndex = 0; batchIndex < chunks.length; batchIndex++) {
+            const batchOrders = chunks[batchIndex];
+            const partNumber = batchIndex + 1;
+            const totalParts = chunks.length;
+  
+            const pdf = new jsPDF("p", "mm", "a4");
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const marginX = 10;
+            const marginY = 10;
+            const rowHeight = 26;
+            const thumbSize = 18;
+  
+            const columns = [
+                { key: "thumb", label: "Thumbnail", width: 26 },
+                { key: "product", label: "Product", width: 68 },
+                { key: "size", label: "Size", width: 12 },
+                { key: "qty", label: "Qty", width: 12 },
+                { key: "version", label: "Version", width: 25 },
+                { key: "custom", label: "Customization", width: pageWidth - marginX * 2 - (26 + 68 + 12 + 12 + 25) },
+            ];
+  
+            let cursorY = marginY; 
+  
+            for (let orderIndex = 0; orderIndex < batchOrders.length; orderIndex++) {
+                const order = batchOrders[orderIndex];
+                
+                if (orderIndex > 0) {
+                    pdf.addPage();
+                    cursorY = marginY; 
+                } 
 
-      const todayStr = new Date().toISOString().split("T")[0];
-      const baseName =
-        orderTab === "pending" ? "pending_orders" : "shipped_orders";
+                // Order Header
+                pdf.setFontSize(12);
+                pdf.setFont("helvetica", "bold");
+                const orderHeader = `Order ${order.id.replace(/^#/, "")} - ${order.customer.name} - ${order.date.split(' | ')[0]}`;
+                pdf.text(orderHeader, marginX, cursorY);
+                cursorY += 7; // Aumento de 6 para 7 (buffer)
   
-      // gerar um PDF por batch
-      for (let batchIndex = 0; batchIndex < chunks.length; batchIndex++) {
-        const batchOrders = chunks[batchIndex];
-        const partNumber = batchIndex + 1;
-        const totalParts = chunks.length;
+                // Address and Tracking
+                pdf.setFontSize(8);
+                pdf.setFont("helvetica", "normal");
+                
+                // ** CORREÇÃO CRÍTICA: Lógica de Endereço Multi-Linha (Impede sobreposição do cabeçalho) **
+                const addressText = toText(order.customer.address);
+                const addressLines = pdf.splitTextToSize(addressText, 70); // Largura fixa para 70mm
+
+                // Desenha o número de telefone
+                pdf.text(`Phone: ${toText(order.customer.phone)}`, marginX + 80, cursorY); 
+
+                // Desenha as linhas do endereço, avançando o Y
+                let currentAddressY = cursorY;
+                const addressLineSpacing = 4; // 4mm por linha (altura segura para 8pt)
+                addressLines.forEach((line) => {
+                    pdf.text(line, marginX, currentAddressY);
+                    currentAddressY += addressLineSpacing; 
+                });
+
+                // Avança o cursor para a próxima secção, garantindo que passa o endereço
+                cursorY = currentAddressY + 1; // 1mm de folga
+
+                // Draw the Tracking number
+                pdf.text(`Tracking: ${toText(order.trackingNumber)}`, marginX, cursorY);
+                cursorY += 6; // Aumento de 5 para 6 (espaçamento seguro antes da Tabela)
   
-        const pdf = new jsPDF("p", "mm", "a4");
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const marginX = 10;
-        const marginY = 10;
-        const rowHeight = 26;
-        const thumbSize = 18;
+                // Table Header
+                pdf.setFontSize(10);
+                pdf.setFont("helvetica", "bold");
+                let headerX = marginX;
+                columns.forEach((col) => {
+                    pdf.rect(headerX, cursorY, col.width, 8);
+                    pdf.text(col.label, headerX + 2, cursorY + 5);
+                    headerX += col.width;
+                });
+                cursorY += 8;
+                pdf.setFont("helvetica", "normal");
+                pdf.setFontSize(8);
   
-        const columns = [
-          { key: "thumb", label: "Thumbnail", width: 26 },
-          { key: "product", label: "Product", width: 68 },
-          { key: "size", label: "Size", width: 12 },
-          { key: "qty", label: "Qty", width: 12 },
-          { key: "version", label: "Version", width: 25 },
-          {
-            key: "custom",
-            label: "Customization",
-            width:
-              pageWidth -
-              marginX * 2 -
-              (26 + 68 + 12 + 12 + 25),
-          },
-        ];
+                for (const item of order.items) {
+                    // Check if item row fits
+                    if (cursorY + rowHeight > pageHeight - marginY) {
+                        pdf.addPage();
+                        cursorY = marginY;
+                        
+                        // New page header for continuation
+                        pdf.setFontSize(12);
+                        pdf.setFont("helvetica", "bold");
+                        pdf.text(
+                            `Order ${order.id.replace(/^#/, "")} — (cont.)`,
+                            marginX,
+                            cursorY
+                        );
+                        cursorY += 6;
+                        
+                        // Repeat table header on continuation page
+                        pdf.setFontSize(10);
+                        pdf.setFont("helvetica", "bold");
+                        let contHeaderX = marginX;
+                        columns.forEach((col) => {
+                            pdf.rect(contHeaderX, cursorY, col.width, 8);
+                            pdf.text(col.label, contHeaderX + 2, cursorY + 5);
+                            contHeaderX += col.width;
+                        });
+                        cursorY += 8;
+                        pdf.setFont("helvetica", "normal");
+                        pdf.setFontSize(8);
+                    }
   
-        // X inicial de cada coluna
-        const colXPositions: number[] = [];
-        {
-          let runningX = marginX;
-          for (const col of columns) {
-            colXPositions.push(runningX);
-            runningX += col.width;
-          }
+                    // Drawing cells
+                    let cellX = marginX;
+                    columns.forEach((col) => {
+                        pdf.rect(cellX, cursorY, col.width, rowHeight);
+                        cellX += col.width;
+                    });
+            
+                    // Thumbnail
+                    const validThumb = item.thumbnailUrl && item.thumbnailUrl !== "null" && item.thumbnailUrl !== "undefined" && item.thumbnailUrl.trim() !== "" && item.thumbnailUrl.startsWith("http");
+                    const thumbUrl = validThumb ? item.thumbnailUrl : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
+  
+                    try {
+                        const imgData = await loadImageAsDataURL(thumbUrl);
+                        pdf.addImage(imgData, "JPEG", marginX + 4, cursorY + 4, thumbSize, thumbSize);
+                    } catch (imgError) {
+                        console.error("Error loading image:", imgError);
+                        pdf.text("Image N/A", marginX + 4, cursorY + rowHeight / 2);
+                    }
+  
+                    // ** CORREÇÃO 1: Product Name and ID (Column 2) - Altura dinâmica **
+                    const productName = toText(item.name);
+                    const productNameLines = pdf.splitTextToSize(productName, columns[1].width - 4);
+                    const lineSpacing = 3.5; // Espaçamento estimado para 8pt (mm)
+
+                    let currentNameY = cursorY + 5; // Posição de início do Nome
+                    productNameLines.forEach((line) => {
+                        pdf.text(line, marginX + columns[0].width + 2, currentNameY);
+                        currentNameY += lineSpacing;
+                    });
+
+                    // Posição do ID: Abaixo do Nome + margem segura (Impede sobreposição do ID)
+                    const productIdY = currentNameY + 1.5; 
+                    pdf.text(`ID: ${toText(item.productId)}`, marginX + columns[0].width + 2, productIdY);
+                    
+                    // ** CORREÇÃO 2: Size e Qty - Centrado Horizontal e Vertical **
+                    // Size (Column 3)
+                    const sizeCenterX = marginX + columns[0].width + columns[1].width + (columns[2].width / 2);
+                    pdf.text(toText(item.size), sizeCenterX, cursorY + rowHeight / 2 + 2, { align: "center" }); 
+
+                    // Qty (Column 4)
+                    const qtyCenterX = marginX + columns[0].width + columns[1].width + columns[2].width + (columns[3].width / 2);
+                    pdf.text(toText(item.quantity), qtyCenterX, cursorY + rowHeight / 2 + 2, { align: "center" }); 
+
+                    // Version (Column 5)
+                    pdf.text(toText(item.version), marginX + columns[0].width + columns[1].width + columns[2].width + columns[3].width + 2, cursorY + rowHeight / 2 + 2, { maxWidth: columns[4].width - 4 });
+            
+                    // ** CORREÇÃO 3: Customization (Column 6) - Centrado Verticalmente (à esquerda) **
+                    const custText = toText(item.customization);
+                    const custLines = pdf.splitTextToSize(custText, columns[5].width - 4);
+                    const textH = custLines.length * lineSpacing; // Altura total do bloco de texto (usando 3.5mm/linha)
+
+                    // Y para texto centrado verticalmente
+                    const centeredY = cursorY + (rowHeight / 2) - (textH / 2) + (lineSpacing / 2); // Ajuste fino no centro
+
+                    pdf.text(
+                        custLines,
+                        marginX + columns[0].width + columns[1].width + columns[2].width + columns[3].width + columns[4].width + 2, 
+                        centeredY
+                    );
+  
+                    cursorY += rowHeight;
+                }
+  
+                // Order Note
+                if (order.note) {
+                    const noteText = `Note: ${toText(order.note)}`;
+                    const noteLines = pdf.splitTextToSize(noteText, pageWidth - marginX * 2 - 6);
+            
+                    // Usar 6 e 7 para maior espaçamento de segurança no mobile
+                    if (cursorY + noteLines.length * 6 + 7 > pageHeight - marginY) {
+                        pdf.addPage();
+                        cursorY = marginY;
+                    }
+  
+                    pdf.setFontSize(8);
+                    pdf.setFont("helvetica", "bold");
+                    pdf.rect(
+                        marginX,
+                        cursorY,
+                        pageWidth - marginX * 2,
+                        noteLines.length * 6 + 7
+                    );
+                    let noteY = cursorY + 4;
+                    pdf.text("NOTE:", marginX + 2, noteY);
+                    pdf.setFont("helvetica", "normal");
+                    noteY += 5;
+                    noteLines.forEach((line) => {
+                        pdf.text(line, marginX + 3, noteY);
+                        noteY += 5;
+                    });
+                    cursorY += noteLines.length * 6 + 7;
+                }
+                
+                // Separator line between orders
+                cursorY += 4;
+                pdf.setLineWidth(0.2);
+                pdf.line(marginX, cursorY, pageWidth - marginX, cursorY);
+                cursorY += 4; 
+            }
+
+            const suffix = totalParts > 1 ? `_part-${partNumber}-of-${totalParts}` : "";
+            pdf.save(`${baseName}_${todayStr}${suffix}.pdf`);
         }
-  
-        let firstPage = true;
-  
-        for (const order of batchOrders) {
-          if (!firstPage) {
-            pdf.addPage();
-          }
-          firstPage = false;
-  
-          let cursorY = marginY;
-  
-          // ---------- HEADER DA ENCOMENDA ----------
-          pdf.setFontSize(14);
-          pdf.setFont("helvetica", "bold");
-          pdf.text(
-            toText(`Order ${order.id} - ${order.date}`),
-            marginX,
-            cursorY
-          );
-  
-          cursorY += 8;
-  
-          pdf.setFontSize(11);
-          pdf.setFont("helvetica", "bold");
-          pdf.text("Customer", marginX, cursorY);
-          cursorY += 5;
-  
-          pdf.setFont("helvetica", "normal");
-  
-          const addressLines = (order.customer.address || "")
-            .split("\n")
-            .filter((l) => l.trim() !== "");
-  
-          const customerLines = [
-            toText(order.customer.name),
-            ...addressLines.map((l) => toText(l)),
-            `Phone: ${toText(order.customer.phone)}`,
-            "",
-            `Status: ${toText(order.status)}`,
-            `Tracking: ${toText(order.trackingNumber, " ")}`,
-          ];
-  
-          customerLines.forEach((line) => {
-            pdf.text(line, marginX, cursorY);
-            cursorY += 4.5;
-          });
-  
-          // ---------- ESPAÇO + TÍTULO "ITEMS" ----------
-          cursorY += 8;
-          pdf.setFontSize(12);
-          pdf.setFont("helvetica", "bold");
-          pdf.text("Items", marginX, cursorY);
-  
-          cursorY += 6;
-  
-          // ---------- CABEÇALHO DA TABELA ----------
-          pdf.setFontSize(10);
-          pdf.setFont("helvetica", "bold");
-  
-          let colX = marginX;
-          columns.forEach((col) => {
-            pdf.rect(colX, cursorY, col.width, 8);
-            pdf.text(col.label, colX + 2, cursorY + 5);
-            colX += col.width;
-          });
-  
-          cursorY += 8;
-          pdf.setFont("helvetica", "normal");
-  
-          // ---------- LINHAS DA TABELA ----------
-          const items = (order.items || []).filter(
-            (it) => it && typeof it === "object"
-          );
-  
-          for (const item of items) {
-            // Se não couber mais uma linha, nova página com header de continuação
-            if (cursorY + rowHeight > pageHeight - marginY) {
-              pdf.addPage();
-  
-              cursorY = marginY;
-              pdf.setFontSize(12);
-              pdf.setFont("helvetica", "bold");
-              pdf.text(
-                toText(`Order ${order.id.replace(/^#/, "")} — (cont.)`),
-                marginX,
-                cursorY
-              );
-  
-              cursorY += 6;
-              pdf.setFontSize(10);
-              pdf.setFont("helvetica", "bold");
-  
-              let headerX = marginX;
-              columns.forEach((col) => {
-                pdf.rect(headerX, cursorY, col.width, 8);
-                pdf.text(col.label, headerX + 2, cursorY + 5);
-                headerX += col.width;
-              });
-  
-              cursorY += 8;
-              pdf.setFont("helvetica", "normal");
-            }
-  
-            // Caixa da linha
-            let cellX = marginX;
-            columns.forEach((col) => {
-              pdf.rect(cellX, cursorY, col.width, rowHeight);
-              cellX += col.width;
-            });
-  
-            // Thumbnail
-            const validThumb =
-              item.thumbnailUrl &&
-              item.thumbnailUrl !== "null" &&
-              item.thumbnailUrl !== "undefined" &&
-              item.thumbnailUrl.trim() !== "" &&
-              item.thumbnailUrl.startsWith("http");
-  
-            const thumbUrl = validThumb
-              ? item.thumbnailUrl
-              : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
-  
-            try {
-              const imgData = await loadImageAsDataURL(thumbUrl);
-              pdf.addImage(
-                imgData,
-                "JPEG",
-                marginX + 4,
-                cursorY + 4,
-                thumbSize,
-                thumbSize
-              );
-            } catch (e) {
-              console.error("Erro ao carregar thumbnail", e);
-            }
-  
-            // ---------- TEXTO NAS COLUNAS ----------
-            const baseY = cursorY + 6;
-  
-            const productName = toText(item.name);
-            const sizeText = toText(item.size);
-            const qtyText = toText(item.quantity ?? 0, "0");
-            const versionText = toText(item.version);
-            const customizationText = toText(item.customization);
-  
-            const productX = colXPositions[1];
-            const sizeX = colXPositions[2];
-            const qtyX = colXPositions[3];
-            const versionX = colXPositions[4];
-            const customX = colXPositions[5];
-  
-            // Product
-            pdf.setFont("helvetica", "normal");
-            pdf.text(productName, productX + 2, baseY, {
-              maxWidth: columns[1].width - 4,
-            });
-  
-            // Size centrado
-            const sizeCenterX = sizeX + columns[2].width / 2;
-            pdf.text(sizeText, sizeCenterX, baseY, { align: "center" });
-  
-            // Qty centrado
-            const qtyCenterX = qtyX + columns[3].width / 2;
-            pdf.text(qtyText, qtyCenterX, baseY, { align: "center" });
-  
-            // Version (Player Edition bold)
-            if (versionText === "Player Edition") {
-              pdf.setFont("helvetica", "bold");
-            } else {
-              pdf.setFont("helvetica", "normal");
-            }
-            pdf.text(versionText, versionX + 2, baseY, {
-              maxWidth: columns[4].width - 4,
-            });
-  
-            // Customization
-            pdf.setFont("helvetica", "normal");
-            pdf.text(customizationText, customX + 2, baseY, {
-              maxWidth: columns[5].width - 4,
-            });
-  
-            cursorY += rowHeight;
-          }
-  
-          // ---------- NOTAS ----------
-          if (order.note) {
-            if (cursorY + 20 > pageHeight - marginY) {
-              pdf.addPage();
-              cursorY = marginY + 10;
-            }
-  
-            pdf.setFontSize(11);
-            pdf.setFont("helvetica", "bold");
-            pdf.text("Notes", marginX, cursorY + 5);
-  
-            pdf.setFont("helvetica", "normal");
-  
-            const noteLines = pdf.splitTextToSize(
-              order.note,
-              pageWidth - marginX * 2
-            );
-  
-            pdf.rect(
-              marginX,
-              cursorY + 7,
-              pageWidth - marginX * 2,
-              noteLines.length * 5 + 6
-            );
-  
-            let noteY = cursorY + 12;
-            noteLines.forEach((line) => {
-              pdf.text(line, marginX + 3, noteY);
-              noteY += 5;
-            });
-          }
-        }
-  
-        const suffix = totalParts > 1 ? `_part-${partNumber}-of-${totalParts}` : "";
-        pdf.save(`${baseName}_${todayStr}${suffix}.pdf`);
-      }
     } catch (error) {
-      console.error("Erro ao gerar PDF:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao gerar o PDF",
-        description: "Tenta novamente em alguns segundos.",
-      });
+        console.error("Erro ao gerar PDF:", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao gerar o PDF",
+            description: "Tenta novamente em alguns segundos.",
+        });
     } finally {
-      setIsExporting(false);
-      setExportChunksInfo(null);
-      setShowSplitNotice(false);    
-    }   
+        setIsExporting(false); 
+        setExportChunksInfo(null);
+        setShowSplitNotice(false);
+    }
   };
     
 
@@ -796,7 +746,6 @@ export default function MasterShopifyOrdersPage() {
                         <p className="text-muted-foreground">ID: {item.productId ?? "—"}</p>
                         <p className="text-muted-foreground">Customization: {item.customization ?? "—"}</p>
                         <p className="text-muted-foreground">Size: {item.size ?? "—"}  /  Qty: {item.quantity ?? 0}</p>
-                        {/* <p className="text-muted-foreground">Qty: {item.quantity ?? 0}</p> */}
                         <p className="text-muted-foreground">
                           Version:{" "}
                           {item.version === "Player Edition" ? (
@@ -998,8 +947,10 @@ export default function MasterShopifyOrdersPage() {
       </Dialog>
 
       <div className="flex flex-col gap-4" id="dashboard-content">        
-        {/* HEADER */}
-        <div className="pt-2">
+      {/* NOVO HEADER COMBINADO: Título + Busca */}
+      <div className="pt-2 flex items-start justify-between">
+        {/* Título e Subtítulo (à esquerda) */}
+        <div>
           <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
             Shopify Orders
           </h1>
@@ -1007,6 +958,91 @@ export default function MasterShopifyOrdersPage() {
             Manage ALL your Shopify orders in one place.
           </p>
         </div>
+        
+        {/* WRAPPER RELATIVO DA PESQUISA (Movido para o canto superior direito) */}
+        <div
+            className={
+                "relative transition-all duration-200 " +
+                (isSearchExpanded ? "w-60" : "w-8") 
+            }
+            >
+            {/* Barra de pesquisa que expande para a esquerda */}
+            <div
+                className={`
+                    flex items-center overflow-hidden rounded-full px-2 py-1 transition-all duration-200
+                    ${isSearchExpanded ? "bg-black/40 border border-white/15 justify-start" : "bg-transparent border-transparent justify-end"}
+                `}
+              >
+
+              {isSearchExpanded && (
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search orders…"
+                  className="flex-1 bg-transparent border-0 outline-none text-xs text-white placeholder:text-muted-foreground pr-1"
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSearchExpanded) {
+                    setSearchQuery("");
+                  }
+                  setIsSearchExpanded((prev) => !prev);
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
+              >
+                <Search className="h-4 w-4" />
+                <span className="sr-only">Search orders</span>
+              </button>
+            </div>
+
+            {/* DROPDOWN ALINHADO E COM MESMA LARGURA */}
+            {isSearchExpanded && searchQuery.trim().length > 0 && (
+              <div className="absolute left-0 top-full mt-1 w-full rounded-xl bg-black/95 border border-white/10 shadow-lg max-h-64 overflow-y-auto z-30">
+                {searchMatches.length === 0 ? (
+                  <p className="text-xs text-muted-foreground p-2 text-center">
+                    No orders found.
+                  </p>
+                ) : (
+                  <div className="flex flex-col">
+                    {searchMatches.map((order) => (
+                      <button
+                        key={order.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-xs bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30 flex items-center justify-between gap-2"
+                        onClick={() => {
+                          const el = document.getElementById(`order-${order.id}`);
+                          if (el) {
+                            el.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            });
+                          }
+                        }}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-[11px]">
+                            {order.id}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {order.customer.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          {order.status}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+        </div>
+      </div>
 
         {/* FILTER BAR – torna-se a “barra premium” */}
         <div className="sticky top-12 z-20 flex flex-col gap-3 rounded-2xl bg-black/40 border border-white/5 px-3 py-3 backdrop-blur-md md:flex-row md:items-center">
@@ -1068,250 +1104,6 @@ export default function MasterShopifyOrdersPage() {
             </Button>
           </div>
 
-          {/* Search + Export alinhados à direita */}
-          <div className="ml-auto flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="flex items-center gap-2 md:justify-end">
-              {/* WRAPPER RELATIVO DA PESQUISA */}
-              <div
-                className={
-                  "relative transition-all duration-200 " +
-                  (isSearchExpanded ? "w-60" : "w-8")
-                }
-              >
-                {/* Barra de pesquisa que expande para a esquerda */}
-                <div
-                    className={`
-                      flex items-center overflow-hidden rounded-full px-2 py-1 transition-all duration-200
-                      ${isSearchExpanded ? "bg-black/40 border border-white/15 justify-start" : "bg-transparent border-transparent justify-end"}
-                    `}
-                  >
-
-                  {isSearchExpanded && (
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search orders…"
-                      className="flex-1 bg-transparent border-0 outline-none text-xs text-white placeholder:text-muted-foreground pr-1"
-                    />
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isSearchExpanded) {
-                        // se já estiver aberto e clicas de novo: limpamos o texto
-                        setSearchQuery("");
-                      }
-                      setIsSearchExpanded((prev) => !prev);
-                    }}
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
-                  >
-                    <Search className="h-4 w-4" />
-                    <span className="sr-only">Search orders</span>
-                  </button>
-                </div>
-
-                {/* DROPDOWN ALINHADO E COM MESMA LARGURA */}
-                {isSearchExpanded && searchQuery.trim().length > 0 && (
-                  <div className="absolute left-0 top-full mt-1 w-full rounded-xl bg-black/95 border border-white/10 shadow-lg max-h-64 overflow-y-auto z-30">
-                    {searchMatches.length === 0 ? (
-                      <p className="text-xs text-muted-foreground p-2 text-center">
-                        No orders found.
-                      </p>
-                    ) : (
-                      <div className="flex flex-col">
-                        {searchMatches.map((order) => (
-                          <button
-                            key={order.id}
-                            type="button"
-                            className="w-full text-left px-3 py-2 text-xs bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30 flex items-center justify-between gap-2"
-                            onClick={() => {
-                              const el = document.getElementById(`order-${order.id}`);
-                              if (el) {
-                                el.scrollIntoView({
-                                  behavior: "smooth",
-                                  block: "start",
-                                });
-                              }
-                            }}
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-[11px]">
-                                {order.id}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground">
-                                {order.customer.name}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">
-                              {order.status}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Export PDF */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleExportPackingSheetPDF}
-                disabled={isExporting}
-                className="bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
-              >
-                <Download className="h-4 w-4" />
-                <span className="sr-only">Export Orders</span>
-              </Button>
-            </div>
-
-            {/* Date Filter fica logo abaixo em mobile / ao lado em desktop */}
-            <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={isFilterActive ? "default" : "outline"}
-                  className="h-8 rounded-full border-white/10 text-xs flex items-center gap-2 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
-                >
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  {isFilterActive ? (
-                    <span>
-                      {startDate.day} {startDate.month.slice(0, 3)} {startDate.year} –{" "}
-                      {endDate.day} {endDate.month.slice(0, 3)} {endDate.year}
-                    </span>
-                  ) : (
-                    <span>Date Filter</span>
-                  )}
-                  {isFilterActive && (
-                    <span
-                      className="ml-auto"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        clearDateFilter();
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-
-              <PopoverContent className="w-80 p-4" align="start">
-                <div className="grid gap-4">
-                  {/* Start Date */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium leading-none">Start Date</h4>
-                    <div className="flex gap-2">
-                      <Select
-                        value={startDate.day}
-                        onValueChange={(v) => setStartDate((p) => ({ ...p, day: v }))}
-                      >
-                        <SelectTrigger className="w-[70px]">
-                          <SelectValue placeholder="Day" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DAYS.map((d) => (
-                            <SelectItem key={d} value={d.toString()}>
-                              {d}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <Select
-                        value={startDate.month}
-                        onValueChange={(v) => setStartDate((p) => ({ ...p, month: v }))}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Month" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MONTHS.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <Select
-                        value={startDate.year}
-                        onValueChange={(v) => setStartDate((p) => ({ ...p, year: v }))}
-                      >
-                        <SelectTrigger className="w-[80px]">
-                          <SelectValue placeholder="Year" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {YEARS.map((y) => (
-                            <SelectItem key={y} value={y.toString()}>
-                              {y}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* End Date */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium leading-none">End Date</h4>
-                    <div className="flex gap-2">
-                      <Select
-                        value={endDate.day}
-                        onValueChange={(v) => setEndDate((p) => ({ ...p, day: v }))}
-                      >
-                        <SelectTrigger className="w-[70px]">
-                          <SelectValue placeholder="Day" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DAYS.map((d) => (
-                            <SelectItem key={d} value={d.toString()}>
-                              {d}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <Select
-                        value={endDate.month}
-                        onValueChange={(v) => setEndDate((p) => ({ ...p, month: v }))}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Month" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MONTHS.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <Select
-                        value={endDate.year}
-                        onValueChange={(v) => setEndDate((p) => ({ ...p, year: v }))}
-                      >
-                        <SelectTrigger className="w-[80px]">
-                          <SelectValue placeholder="Year" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {YEARS.map((y) => (
-                            <SelectItem key={y} value={y.toString()}>
-                              {y}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
         </div>
       
         {!pageLoading && orders.length === 0 && (
@@ -1324,42 +1116,110 @@ export default function MasterShopifyOrdersPage() {
             </Card>
         )}
 
-        {/* Tabs como segmented control */}
-        <div className="mt-2 flex items-center gap-2 md:mt-0 md:ml-auto">
-        <div className="inline-flex items-center rounded-full bg-black/40 p-1 border border-white/5">
-            <Button
-              variant={orderTab === "pending" ? "default" : "ghost"}
-              size="sm"
-              className={`h-8 rounded-full px-4 text-xs transition-none ${
-                orderTab === "pending"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-muted-foreground hover:bg-purple-500/20 hover:text-white"
-              }`}
-              onClick={() => {
-                setOrderTab("pending");
-                setPage(1);
-              }}
-            >
-              Pending Orders ({pendingOrders.length})
-            </Button>
+        {/* Tabs como segmented control */} 
+<div className="mt-2 flex items-center gap-2 md:mt-0 md:ml-auto">
+    <div className="inline-flex items-center rounded-full bg-black/40 p-1 border border-white/5">
+        <Button variant={orderTab === "pending" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "pending" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => setOrderTab("pending")}>
+            Pending ({pendingOrders.length})
+        </Button>
+        <Button variant={orderTab === "shipped" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "shipped" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => setOrderTab("shipped")}>
+            Shipped ({shippedOrders.length})
+        </Button>
+    </div>
 
-            <Button
-              variant={orderTab === "shipped" ? "default" : "ghost"}
-              size="sm"
-              className={`h-8 rounded-full px-4 text-xs transition-none ${
-                orderTab === "shipped"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-muted-foreground hover:bg-purple-500/20 hover:text-white"
-              }`}
-              onClick={() => {
-                setOrderTab("shipped");
-                setPage(1);
-              }}
-            >
-              Shipped Orders ({shippedOrders.length})
-            </Button>
-          </div>
-        </div>
+    {/* SEÇÃO CORRIGIDA: DROPDOWN DE EXPORT (com Download icon) ao lado do Calendário (Popover) */}
+    <div className="flex items-center gap-2">
+        {/* BOTÃO DE EXPORT (Dropdown) - A CORREÇÃO PRINCIPAL */}
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-8 w-8 rounded-full border-white/10 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
+                >
+                    <Download className="h-4 w-4" />
+                    <span className="sr-only">Export</span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-auto bg-black/80 backdrop-blur-md border-white/10">
+                {/* O onSelect dispara handleExportPackingSheetPDF, ativando o loading e a geração */}
+                <DropdownMenuItem 
+                    onClick={handleExportPackingSheetPDF} 
+                    className="text-sm font-medium focus:bg-purple-500/20 cursor-pointer"
+                >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export Current List (PDF)
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Popover do Calendário (Filtro de Data) */}
+        <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
+            <PopoverTrigger asChild>
+                <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className={`h-8 w-8 rounded-full border-white/10 ${isDateFilterOpen || isFilterActive ? 'bg-purple-600 text-white border-purple-600' : 'hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30'}`}
+                >
+                    <CalendarIcon className="h-4 w-4" />
+                    <span className="sr-only">Date Filter</span>
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-4 bg-black/80 backdrop-blur-md border-white/10 text-white" align="end">
+                <div className="flex flex-col gap-4">
+                    <h3 className="text-sm font-semibold">Date Filter</h3>
+                    <div className="space-y-2">
+                        <h4 className="font-medium leading-none">Start Date</h4>
+                        <div className="flex gap-2">
+                            <Select value={startDate.day} onValueChange={(v) => setStartDate((p) => ({ ...p, day: v }))}>
+                                <SelectTrigger className="w-[80px]"><SelectValue placeholder="Day" /></SelectTrigger>
+                                <SelectContent>{DAYS.map((d) => (<SelectItem key={d} value={d.toString()}>{pad(d)}</SelectItem>))}</SelectContent>
+                            </Select>
+                            <Select value={startDate.month} onValueChange={(v) => setStartDate((p) => ({ ...p, month: v }))}>
+                                <SelectTrigger className="w-[100px]"><SelectValue placeholder="Month" /></SelectTrigger>
+                                <SelectContent>{MONTHS.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent>
+                            </Select>
+                            <Select value={startDate.year} onValueChange={(v) => setStartDate((p) => ({ ...p, year: v }))}>
+                                <SelectTrigger className="w-[80px]"><SelectValue placeholder="Year" /></SelectTrigger>
+                                <SelectContent>{YEARS.map((y) => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <h4 className="font-medium leading-none">End Date</h4>
+                        <div className="flex gap-2">
+                            <Select value={endDate.day} onValueChange={(v) => setEndDate((p) => ({ ...p, day: v }))}>
+                                <SelectTrigger className="w-[80px]"><SelectValue placeholder="Day" /></SelectTrigger>
+                                <SelectContent>{DAYS.map((d) => (<SelectItem key={d} value={d.toString()}>{pad(d)}</SelectItem>))}</SelectContent>
+                            </Select>
+                            <Select value={endDate.month} onValueChange={(v) => setEndDate((p) => ({ ...p, month: v }))}>
+                                <SelectTrigger className="w-[100px]"><SelectValue placeholder="Month" /></SelectTrigger>
+                                <SelectContent>{MONTHS.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent>
+                            </Select>
+                            <Select value={endDate.year} onValueChange={(v) => setEndDate((p) => ({ ...p, year: v }))}>
+                                <SelectTrigger className="w-[80px]"><SelectValue placeholder="Year" /></SelectTrigger>
+                                <SelectContent>{YEARS.map((y) => (<SelectItem key={y} value={y.toString()}>{y}</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="flex justify-between mt-2">
+                        <Button 
+                            onClick={handleResetDateFilter} // <--- Chamada para a função de reset
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-xs text-white/70 hover:bg-white/10"
+                        >
+                            <X className="h-3 w-3 mr-1" /> Reset Filter
+                        </Button>
+                        <Button onClick={() => setIsDateFilterOpen(false)} size="sm" className="text-xs">
+                            Apply
+                        </Button>
+                    </div>
+                </div>
+            </PopoverContent>
+        </Popover>
+    </div>
+</div>
 
         {/* Selected Tab Content */}
         <div className="mt-6">
