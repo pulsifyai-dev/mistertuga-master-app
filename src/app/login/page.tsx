@@ -56,8 +56,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      await userCredential.user.getIdToken(true);
-      router.push('/dashboard');
+      await userCredential.user.getIdToken(true); 
+      router.push('/'); 
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -87,7 +87,7 @@ export default function LoginPage() {
       try {
         const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
         await userCredential.user.getIdToken(true);
-        router.push('/dashboard');
+        router.push('/'); 
       } catch(e: any) {
          toast({
           variant: 'destructive',
@@ -101,144 +101,177 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="mb-8 flex items-center gap-4">
-        <Logo className="h-12 w-12 text-primary" />
-        <h1 className="font-headline text-4xl font-bold">MisterTuga Insights</h1>
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-gray-900 p-4 overflow-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-purple-500 rounded-full blur-[100px] opacity-10 z-0"></div>
+
+      <div className="relative z-10 flex flex-col items-center">
+        
+        {/* 💡 CORREÇÃO: Removido o quadrado "MT" com gradiente. */}
+        <div className="mb-8 flex flex-col items-center gap-2">
+          <h1 className="font-headline text-5xl font-extrabold text-white">
+            MisterTuga App
+          </h1>
+        </div>
+        
+        <Tabs defaultValue="login" className="w-full max-w-md">
+          {/* TabsList com p-1 para criar o "rail" premium */}
+          <TabsList className="grid w-full grid-cols-2 bg-neutral-900/80 border border-white/10 shadow-lg rounded-xl p-1">
+            <TabsTrigger 
+              value="login" 
+              className="data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-colors hover:bg-white/5 rounded-lg"
+            >
+              Login
+            </TabsTrigger>
+            <TabsTrigger 
+              value="signup" 
+              className="data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-colors hover:bg-white/5 rounded-lg"
+            >
+              Sign Up
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="login">
+            <Card className="bg-neutral-800 border border-white/10 text-white shadow-lg rounded-xl mt-4">
+              <CardHeader>
+                {/* 'Welcome Back' em branco */}
+                <CardTitle className="font-headline text-2xl text-white">Welcome Back</CardTitle>
+                <CardDescription className="text-gray-400">Enter your credentials to access your dashboard.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...loginForm}>
+                  <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+                    <FormField
+                      control={loginForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="user@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={loginForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="••••••••" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {/* Botão com gradiente roxo mais escuro */}
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-gradient-to-r from-purple-900 to-purple-700 hover:from-purple-800 hover:to-purple-600 transition-colors" 
+                      disabled={loading}
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Login
+                    </Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="signup">
+            <Card className="bg-neutral-800 border border-white/10 text-white shadow-lg rounded-xl mt-4">
+              <CardHeader>
+                {/* 'Create an Account' em branco */}
+                <CardTitle className="font-headline text-2xl text-white">Create an Account</CardTitle>
+                <CardDescription className="text-gray-400">Join our platform to get started.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...signUpForm}>
+                  <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
+                     <FormField
+                      control={signUpForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Your Name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={signUpForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="new.user@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={signUpForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="••••••••" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={signUpForm.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="••••••••" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={signUpForm.control}
+                      name="adminCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admin Code (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter code if you are an admin" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {/* Botão com gradiente roxo mais escuro */}
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-gradient-to-r from-purple-900 to-purple-700 hover:from-purple-800 hover:to-purple-600 transition-colors" 
+                      disabled={loading}
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Sign Up
+                    </Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-      <Tabs defaultValue="login" className="w-full max-w-md">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="signup">Sign Up</TabsTrigger>
-        </TabsList>
-        <TabsContent value="login">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Welcome Back</CardTitle>
-              <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
-                  <FormField
-                    control={loginForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="user@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={loginForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Login
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="signup">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Create an Account</CardTitle>
-              <CardDescription>Join our platform to get started.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...signUpForm}>
-                <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
-                   <FormField
-                    control={signUpForm.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Your Name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={signUpForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="new.user@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={signUpForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={signUpForm.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Confirm Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={signUpForm.control}
-                    name="adminCode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Admin Code (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter code if you are an admin" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Sign Up
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </main>
   );
 }
