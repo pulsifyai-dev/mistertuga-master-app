@@ -99,7 +99,7 @@ export default function MasterShopifyOrdersPage() {
   const [startDate, setStartDate] = useState({ day: '', month: '', year: '' });
   const [endDate, setEndDate] = useState({ day: '', month: '', year: '' });
 
-  // ** FUNÇÃO DE RESET CORRIGIDA **
+  // ** FUNÇÃO DE RESET CORRIGIDA (Funciona em todos os ecrãs) **
   const handleResetDateFilter = () => {
     setStartDate({ day: "", month: "", year: "" });
     setEndDate({ day: "", month: "", year: "" });
@@ -468,7 +468,7 @@ export default function MasterShopifyOrdersPage() {
                 // Order Header
                 pdf.setFontSize(12);
                 pdf.setFont("helvetica", "bold");
-                const orderHeader = `Order ${order.id.replace(/^#/, "")} - ${order.customer.name} - ${order.date.split(' | ')[0]}`;
+                const orderHeader = `Order ${order.id.replace(/^#/, "")} - ${order.customer.name} - ${order.date.split(' | ')[0]} (${order.countryCode})`;
                 pdf.text(orderHeader, marginX, cursorY);
                 cursorY += 7; // Aumento de 6 para 7 (buffer)
   
@@ -476,7 +476,7 @@ export default function MasterShopifyOrdersPage() {
                 pdf.setFontSize(8);
                 pdf.setFont("helvetica", "normal");
                 
-                // ** CORREÇÃO CRÍTICA: Lógica de Endereço Multi-Linha (Impede sobreposição do cabeçalho) **
+                // ** Lógica de Endereço Multi-Linha (Impede sobreposição do cabeçalho) **
                 const addressText = toText(order.customer.address);
                 const addressLines = pdf.splitTextToSize(addressText, 70); // Largura fixa para 70mm
 
@@ -1202,16 +1202,21 @@ export default function MasterShopifyOrdersPage() {
                             </Select>
                         </div>
                     </div>
+                    {/* FOOTER DO POPOVER COM OS BOTÕES (Funciona em Desktop e Mobile) */}
                     <div className="flex justify-between mt-2">
                         <Button 
-                            onClick={handleResetDateFilter} // <--- Chamada para a função de reset
+                            onClick={handleResetDateFilter} // <--- Função de Reset (limpa estados e fecha)
                             variant="ghost" 
                             size="sm" 
                             className="text-xs text-white/70 hover:bg-white/10"
                         >
                             <X className="h-3 w-3 mr-1" /> Reset Filter
                         </Button>
-                        <Button onClick={() => setIsDateFilterOpen(false)} size="sm" className="text-xs">
+                        <Button 
+                            onClick={() => setIsDateFilterOpen(false)} // <--- Função de Apply (apenas fecha)
+                            size="sm" 
+                            className="text-xs"
+                        >
                             Apply
                         </Button>
                     </div>
