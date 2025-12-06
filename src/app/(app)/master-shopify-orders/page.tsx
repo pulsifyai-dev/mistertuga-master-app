@@ -99,11 +99,11 @@ export default function MasterShopifyOrdersPage() {
   const [startDate, setStartDate] = useState({ day: '', month: '', year: '' });
   const [endDate, setEndDate] = useState({ day: '', month: '', year: '' });
 
-  // ** FUNÇÃO DE RESET CORRIGIDA (Funciona em todos os ecrãs) **
+  // Funções de Reset do Filtro de Data
   const handleResetDateFilter = () => {
     setStartDate({ day: "", month: "", year: "" });
     setEndDate({ day: "", month: "", year: "" });
-    setIsDateFilterOpen(false); // Fecha o popover ao resetar
+    setIsDateFilterOpen(false); 
   };
 
 
@@ -129,6 +129,9 @@ export default function MasterShopifyOrdersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // ESTADO NOVO: Guarda o ID do pedido selecionado pela pesquisa
+  const [selectedOrderIdForSearch, setSelectedOrderIdForSearch] = useState<string | null>(null);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -265,11 +268,11 @@ export default function MasterShopifyOrdersPage() {
       return;
     }
   
-    // mostrar aviso em grande durante 1 segundo
+    // mostrar aviso em grande durante 3 segundos
     setShowSplitNotice(true);
     const t = window.setTimeout(() => {
       setShowSplitNotice(false);
-    }, 3000); // 3s
+    }, 3000); 
   
     return () => {
       window.clearTimeout(t);
@@ -374,10 +377,6 @@ export default function MasterShopifyOrdersPage() {
 
   const filteredOrders = filterOrdersByDate(activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter));
 
-  /**
-   * Função Completa de Exportação de PDF
-   * (Incluída com todas as correções de posicionamento e alinhamento)
-   */
   const handleExportPackingSheetPDF = async () => {
     setIsExporting(true);
   
@@ -470,33 +469,33 @@ export default function MasterShopifyOrdersPage() {
                 pdf.setFont("helvetica", "bold");
                 const orderHeader = `Order ${order.id.replace(/^#/, "")} - ${order.customer.name} - ${order.date.split(' | ')[0]} (${order.countryCode})`;
                 pdf.text(orderHeader, marginX, cursorY);
-                cursorY += 7; // Aumento de 6 para 7 (buffer)
+                cursorY += 7; 
   
                 // Address and Tracking
                 pdf.setFontSize(8);
                 pdf.setFont("helvetica", "normal");
                 
-                // ** Lógica de Endereço Multi-Linha (Impede sobreposição do cabeçalho) **
+                // Lógica de Endereço Multi-Linha 
                 const addressText = toText(order.customer.address);
-                const addressLines = pdf.splitTextToSize(addressText, 70); // Largura fixa para 70mm
+                const addressLines = pdf.splitTextToSize(addressText, 70); 
 
                 // Desenha o número de telefone
                 pdf.text(`Phone: ${toText(order.customer.phone)}`, marginX + 80, cursorY); 
 
                 // Desenha as linhas do endereço, avançando o Y
                 let currentAddressY = cursorY;
-                const addressLineSpacing = 4; // 4mm por linha (altura segura para 8pt)
+                const addressLineSpacing = 4; 
                 addressLines.forEach((line) => {
                     pdf.text(line, marginX, currentAddressY);
                     currentAddressY += addressLineSpacing; 
                 });
 
-                // Avança o cursor para a próxima secção, garantindo que passa o endereço
-                cursorY = currentAddressY + 1; // 1mm de folga
+                // Avança o cursor para a próxima secção
+                cursorY = currentAddressY + 1; 
 
                 // Draw the Tracking number
                 pdf.text(`Tracking: ${toText(order.trackingNumber)}`, marginX, cursorY);
-                cursorY += 6; // Aumento de 5 para 6 (espaçamento seguro antes da Tabela)
+                cursorY += 6; 
   
                 // Table Header
                 pdf.setFontSize(10);
@@ -560,22 +559,22 @@ export default function MasterShopifyOrdersPage() {
                         pdf.text("Image N/A", marginX + 4, cursorY + rowHeight / 2);
                     }
   
-                    // ** CORREÇÃO 1: Product Name and ID (Column 2) - Altura dinâmica **
+                    // CORREÇÃO 1: Product Name and ID (Column 2) - Altura dinâmica
                     const productName = toText(item.name);
                     const productNameLines = pdf.splitTextToSize(productName, columns[1].width - 4);
-                    const lineSpacing = 3.5; // Espaçamento estimado para 8pt (mm)
+                    const lineSpacing = 3.5; 
 
-                    let currentNameY = cursorY + 5; // Posição de início do Nome
+                    let currentNameY = cursorY + 5; 
                     productNameLines.forEach((line) => {
                         pdf.text(line, marginX + columns[0].width + 2, currentNameY);
                         currentNameY += lineSpacing;
                     });
 
-                    // Posição do ID: Abaixo do Nome + margem segura (Impede sobreposição do ID)
+                    // Posição do ID: Abaixo do Nome + margem segura
                     const productIdY = currentNameY + 1.5; 
                     pdf.text(`ID: ${toText(item.productId)}`, marginX + columns[0].width + 2, productIdY);
                     
-                    // ** CORREÇÃO 2: Size e Qty - Centrado Horizontal e Vertical **
+                    // CORREÇÃO 2: Size e Qty - Centrado Horizontal e Vertical
                     // Size (Column 3)
                     const sizeCenterX = marginX + columns[0].width + columns[1].width + (columns[2].width / 2);
                     pdf.text(toText(item.size), sizeCenterX, cursorY + rowHeight / 2 + 2, { align: "center" }); 
@@ -587,13 +586,13 @@ export default function MasterShopifyOrdersPage() {
                     // Version (Column 5)
                     pdf.text(toText(item.version), marginX + columns[0].width + columns[1].width + columns[2].width + columns[3].width + 2, cursorY + rowHeight / 2 + 2, { maxWidth: columns[4].width - 4 });
             
-                    // ** CORREÇÃO 3: Customization (Column 6) - Centrado Verticalmente (à esquerda) **
+                    // CORREÇÃO 3: Customization (Column 6) - Centrado Verticalmente (à esquerda)
                     const custText = toText(item.customization);
                     const custLines = pdf.splitTextToSize(custText, columns[5].width - 4);
-                    const textH = custLines.length * lineSpacing; // Altura total do bloco de texto (usando 3.5mm/linha)
+                    const textH = custLines.length * lineSpacing; 
 
                     // Y para texto centrado verticalmente
-                    const centeredY = cursorY + (rowHeight / 2) - (textH / 2) + (lineSpacing / 2); // Ajuste fino no centro
+                    const centeredY = cursorY + (rowHeight / 2) - (textH / 2) + (lineSpacing / 2); 
 
                     pdf.text(
                         custLines,
@@ -673,7 +672,13 @@ export default function MasterShopifyOrdersPage() {
   const shippedOrders = filteredOrders.filter(o => o.status === 'Shipped');
 
   // Select list based on tab
-  const listToShow = orderTab === "pending" ? pendingOrders : shippedOrders;
+  let listToShow = orderTab === "pending" ? pendingOrders : shippedOrders;
+
+  // NOVO FILTRO DE PESQUISA: Se houver um ID selecionado, filtra a lista para mostrar apenas esse ID.
+  if (selectedOrderIdForSearch) {
+    listToShow = listToShow.filter(o => o.id === selectedOrderIdForSearch);
+  }
+
   const totalPages = Math.ceil(listToShow.length / ITEMS_PER_PAGE);
 
   const paginatedOrders = listToShow.slice(
@@ -959,7 +964,7 @@ export default function MasterShopifyOrdersPage() {
           </p>
         </div>
         
-        {/* WRAPPER RELATIVO DA PESQUISA (Movido para o canto superior direito) */}
+        {/* WRAPPER RELATIVO DA PESQUISA */}
         <div
             className={
                 "relative transition-all duration-200 " +
@@ -979,7 +984,11 @@ export default function MasterShopifyOrdersPage() {
                   ref={searchInputRef}
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    // Limpa o filtro de ID ao começar a digitar uma nova pesquisa
+                    setSelectedOrderIdForSearch(null); 
+                  }}
                   placeholder="Search orders…"
                   className="flex-1 bg-transparent border-0 outline-none text-xs text-white placeholder:text-muted-foreground pr-1"
                 />
@@ -990,6 +999,7 @@ export default function MasterShopifyOrdersPage() {
                 onClick={() => {
                   if (isSearchExpanded) {
                     setSearchQuery("");
+                    setSelectedOrderIdForSearch(null); // Limpa o filtro de ID se fechar a busca com o botão X
                   }
                   setIsSearchExpanded((prev) => !prev);
                 }}
@@ -1000,7 +1010,7 @@ export default function MasterShopifyOrdersPage() {
               </button>
             </div>
 
-            {/* DROPDOWN ALINHADO E COM MESMA LARGURA */}
+            {/* DROPDOWN ALINHADO */}
             {isSearchExpanded && searchQuery.trim().length > 0 && (
               <div className="absolute left-0 top-full mt-1 w-full rounded-xl bg-black/95 border border-white/10 shadow-lg max-h-64 overflow-y-auto z-30">
                 {searchMatches.length === 0 ? (
@@ -1015,13 +1025,11 @@ export default function MasterShopifyOrdersPage() {
                         type="button"
                         className="w-full text-left px-3 py-2 text-xs bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30 flex items-center justify-between gap-2"
                         onClick={() => {
-                          const el = document.getElementById(`order-${order.id}`);
-                          if (el) {
-                            el.scrollIntoView({
-                              behavior: "smooth",
-                              block: "start",
-                            });
-                          }
+                          // NOVO COMPORTAMENTO: Aplica o filtro de ID e fecha a busca
+                          setSelectedOrderIdForSearch(order.id);
+                          setIsSearchExpanded(false);
+                          setSearchQuery("");
+                          setPage(1); // Volta para a primeira página
                         }}
                       >
                         <div className="flex flex-col">
@@ -1050,7 +1058,7 @@ export default function MasterShopifyOrdersPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={activeFilter === 'ALL' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('ALL')}
+              onClick={() => { setActiveFilter('ALL'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
               className="h-8 rounded-full text-xs px-3 border-white/10 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               ALL
@@ -1063,7 +1071,7 @@ export default function MasterShopifyOrdersPage() {
 
             <Button
               variant={activeFilter === 'PT' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('PT')}
+              onClick={() => { setActiveFilter('PT'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
               className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               <FlagPT />
@@ -1077,7 +1085,7 @@ export default function MasterShopifyOrdersPage() {
 
             <Button
               variant={activeFilter === 'DE' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('DE')}
+              onClick={() => { setActiveFilter('DE'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
               className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               <FlagDE />
@@ -1091,7 +1099,7 @@ export default function MasterShopifyOrdersPage() {
 
             <Button
               variant={activeFilter === 'ES' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('ES')}
+              onClick={() => { setActiveFilter('ES'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
               className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
             >
               <FlagES />
@@ -1116,20 +1124,37 @@ export default function MasterShopifyOrdersPage() {
             </Card>
         )}
 
-        {/* Tabs como segmented control */} 
-<div className="mt-2 flex items-center gap-2 md:mt-0 md:ml-auto">
+        {/* Tabs como segmented control e Filtros Adicionais */} 
+<div className="mt-2 flex flex-wrap items-center gap-2 md:mt-0 md:ml-auto">
     <div className="inline-flex items-center rounded-full bg-black/40 p-1 border border-white/5">
-        <Button variant={orderTab === "pending" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "pending" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => setOrderTab("pending")}>
+        <Button variant={orderTab === "pending" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "pending" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => { setOrderTab("pending"); setPage(1); }}>
             Pending ({pendingOrders.length})
         </Button>
-        <Button variant={orderTab === "shipped" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "shipped" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => setOrderTab("shipped")}>
+        <Button variant={orderTab === "shipped" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "shipped" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => { setOrderTab("shipped"); setPage(1); }}>
             Shipped ({shippedOrders.length})
         </Button>
     </div>
 
-    {/* SEÇÃO CORRIGIDA: DROPDOWN DE EXPORT (com Download icon) ao lado do Calendário (Popover) */}
+    {/* NOVO BOTÃO: Exibir Filtro de Pesquisa Ativo */}
+    {selectedOrderIdForSearch && (
+        <Button
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-full px-4 text-xs bg-purple-600 text-white border-purple-600 hover:bg-purple-500 hover:text-white active:bg-purple-700 active:scale-[0.98] transition-none"
+            onClick={() => {
+                setSelectedOrderIdForSearch(null); // Limpa o filtro
+                setPage(1); // Reseta a paginação
+                // O orderTab mantém-se
+            }}
+        >
+            <X className="h-3.5 w-3.5 mr-2" />
+            Showing: {selectedOrderIdForSearch}
+        </Button>
+    )}
+
+
     <div className="flex items-center gap-2">
-        {/* BOTÃO DE EXPORT (Dropdown) - A CORREÇÃO PRINCIPAL */}
+        {/* BOTÃO DE EXPORT (Dropdown) */}
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button 
@@ -1142,7 +1167,6 @@ export default function MasterShopifyOrdersPage() {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-auto bg-black/80 backdrop-blur-md border-white/10">
-                {/* O onSelect dispara handleExportPackingSheetPDF, ativando o loading e a geração */}
                 <DropdownMenuItem 
                     onClick={handleExportPackingSheetPDF} 
                     className="text-sm font-medium focus:bg-purple-500/20 cursor-pointer"
@@ -1202,10 +1226,10 @@ export default function MasterShopifyOrdersPage() {
                             </Select>
                         </div>
                     </div>
-                    {/* FOOTER DO POPOVER COM OS BOTÕES (Funciona em Desktop e Mobile) */}
+                    {/* FOOTER DO POPOVER COM OS BOTÕES */}
                     <div className="flex justify-between mt-2">
                         <Button 
-                            onClick={handleResetDateFilter} // <--- Função de Reset (limpa estados e fecha)
+                            onClick={handleResetDateFilter} 
                             variant="ghost" 
                             size="sm" 
                             className="text-xs text-white/70 hover:bg-white/10"
@@ -1213,7 +1237,7 @@ export default function MasterShopifyOrdersPage() {
                             <X className="h-3 w-3 mr-1" /> Reset Filter
                         </Button>
                         <Button 
-                            onClick={() => setIsDateFilterOpen(false)} // <--- Função de Apply (apenas fecha)
+                            onClick={() => setIsDateFilterOpen(false)} 
                             size="sm" 
                             className="text-xs"
                         >
