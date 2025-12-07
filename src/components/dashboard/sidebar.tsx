@@ -60,9 +60,11 @@ export default function DashboardSidebar() {
   const logoutButtonClasses =
     "text-red-400 hover:bg-red-500/10 hover:text-red-400";
 
-  // 💡 CORREÇÃO 1: Fecha a sidebar ao navegar, independentemente do dispositivo.
+  // 💡 CORREÇÃO 1: Fecha a sidebar ao navegar, na versão mobile.
   const handleNavClick = () => {
-    setOpen(false);
+    if (isMobile) {
+      setOpen(false);
+    }  
   };
 
   // 💡 CORREÇÃO 2: Fecha a sidebar após o logout.
