@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  // ADICIONA ESTA NOVA SECÇÃO:
+  experimental: {
+    serverComponentsExternalPackages: ['firebase-admin'],
+  },
+
   images: {
     remotePatterns: [
       {
