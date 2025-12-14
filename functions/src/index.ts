@@ -3,18 +3,54 @@ import * as logger from "firebase-functions/logger";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
-// Initialize Firebase Admin SDK if not already initialized
+// ---------------------------------------------------------------------
+// Inicialização segura do Firebase Admin
+// ---------------------------------------------------------------------
 if (getApps().length === 0) {
   initializeApp();
 }
 
 const db = getFirestore();
 
-/**
- * Cloud Function that triggers when an order is updated.
- *
- * Sends a webhook ONLY when trackingNumber changes.
- */
+// ---------------------------------------------------------------------
+// Cache em memória do webhook (evita ler Firestore em cada trigger)
+// ---------------------------------------------------------------------
+let cachedTrackingWebhookUrl: string | null = null;
+
+// ---------------------------------------------------------------------
+// Função utilitária: lê settings/tracking.url (com cache)
+// ---------------------------------------------------------------------
+async function getTrackingWebhookUrl(): Promise<string | null> {
+  if (cachedTrackingWebhookUrl) {
+    return cachedTrackingWebhookUrl;
+  }
+
+  try {
+    const snap = await db.doc("settings/tracking").get();
+
+    if (!snap.exists) {
+      logger.error("❌ Documento settings/tracking não existe");
+      return null;
+    }
+
+    const url = snap.data()?.url;
+
+    if (typeof url === "string" && url.trim() !== "") {
+      cachedTrackingWebhookUrl = url.trim();
+      return cachedTrackingWebhookUrl;
+    }
+
+    logger.error("❌ Campo settings/tracking.url vazio ou inválido");
+    return null;
+  } catch (error) {
+    logger.error("❌ Erro ao ler settings/tracking", error);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Cloud Function: envia webhook quando tracking é ADICIONADO
+// ---------------------------------------------------------------------
 export const sendTrackingWebhookOnOrderUpdate = onDocumentUpdated(
   {
     document: "orders/{countryCode}/orders/{orderId}",
@@ -23,12 +59,8 @@ export const sendTrackingWebhookOnOrderUpdate = onDocumentUpdated(
     memory: "256MiB",
   },
   async (event) => {
-    const orderId = event.params.orderId;
-
-    logger.info(`Processing update for order: ${orderId}`);
-
     if (!event.data) {
-      logger.warn("No data associated with the event. Exiting function.");
+      logger.warn("⚠️ Evento sem dados. A sair.");
       return;
     }
 
@@ -36,63 +68,98 @@ export const sendTrackingWebhookOnOrderUpdate = onDocumentUpdated(
     const after = event.data.after.data();
 
     if (!before || !after) {
-      logger.info("Document appears deleted; skipping.");
+      logger.info("ℹ️ Documento criado ou removido. Ignorado.");
       return;
     }
 
-    const trackingBefore = before.trackingNumber;
-    const trackingAfter = after.trackingNumber;
+    const orderId = event.params.orderId;
+    const countryCode = event.params.countryCode;
 
-    const webhookUrl = after.webhook;
+    // -----------------------------------------------------------------
+    // Normalização segura do tracking
+    // -----------------------------------------------------------------
+    const trackingBefore = String(before.trackingNumber ?? "").trim();
+    const trackingAfter = String(after.trackingNumber ?? "").trim();
 
-    // ❗ This is the CORRECT behavior:
-    // Only proceed if tracking changed
-    if (trackingBefore === trackingAfter) {
-      logger.info("Tracking did not change. No webhook sent.");
+    // -----------------------------------------------------------------
+    // REGRA DE OURO:
+    // só dispara quando passa de vazio -> preenchido
+    // -----------------------------------------------------------------
+    if (!(trackingBefore === "" && trackingAfter !== "")) {
+      logger.info("🔁 Nenhuma transição válida de tracking. Ignorado.", {
+        orderId,
+        trackingBefore,
+        trackingAfter,
+      });
       return;
     }
 
-    if (!trackingAfter) {
-      logger.info("Tracking removed or still empty. Skipping webhook.");
-      return;
-    }
+    // -----------------------------------------------------------------
+    // Obter webhook das settings
+    // -----------------------------------------------------------------
+    const webhookUrl = await getTrackingWebhookUrl();
 
     if (!webhookUrl) {
-      logger.error(`Order ${orderId} does not contain a 'webhook' field.`);
+      logger.error("❌ Webhook não definido em settings/tracking.url", {
+        orderId,
+      });
       return;
     }
 
-    logger.info(
-      `Tracking changed for order ${orderId}. Sending webhook to: ${webhookUrl}`
-    );
+    logger.info("📦 Tracking adicionado. A enviar webhook.", {
+      orderId,
+      countryCode,
+      tracking: trackingAfter,
+      webhookUrl,
+    });
+
+    // -----------------------------------------------------------------
+    // Payload explícito e estável
+    // -----------------------------------------------------------------
+    const payload = {
+      event: "tracking_added",
+      orderId,
+      countryCode,
+      trackingNumber: trackingAfter,
+      status: after.status ?? "Shipped",
+      customer: {
+        name: after.customer?.name ?? "",
+        address: after.customer?.address ?? "",
+        phone: after.customer?.phone ?? "",
+      },
+      items: after.items ?? [],
+      createdAt: after.date ?? null,
+      updatedAt: Date.now(),
+    };
 
     try {
-      const payload = {
-        orderId,
-        trackingNumber: trackingAfter,
-        previousTracking: trackingBefore || null,
-        updatedAt: Date.now(),
-        ...after, // include all order data
-      };
-
       const response = await fetch(webhookUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        logger.info(
-          `Webhook sent successfully for order ${orderId}. Status: ${response.status}`
-        );
-      } else {
+      if (!response.ok) {
         const body = await response.text();
-        logger.error(
-          `Webhook failed for ${orderId}. Status: ${response.status}. Body: ${body}`
-        );
+        logger.error("❌ Webhook falhou", {
+          orderId,
+          status: response.status,
+          body,
+        });
+        return;
       }
-    } catch (err) {
-      logger.error(`Unexpected error sending webhook for ${orderId}:`, err);
+
+      logger.info("✅ Webhook enviado com sucesso", {
+        orderId,
+        status: response.status,
+      });
+    } catch (error) {
+      logger.error("❌ Erro inesperado ao enviar webhook", {
+        orderId,
+        error,
+      });
     }
   }
 );

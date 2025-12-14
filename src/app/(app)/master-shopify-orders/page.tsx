@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useFirebase } from '@/firebase';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -21,7 +21,7 @@ import { updateOrderDetails } from './actions';
 import jsPDF from 'jspdf';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, ChevronUp, Eye, EyeOff } from "lucide-react";
+import { Search, ChevronUp, Eye, EyeOff, Globe } from "lucide-react";
 
 // --- Type Definitions ---
 type Product = { name: string; productId: string; customization: string; size: string; quantity: number; thumbnailUrl: string; version: string; };
@@ -121,7 +121,7 @@ export default function MasterShopifyOrdersPage() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [submittingOrderId, setSubmittingOrderId] = useState<string | null>(null);
 
   const { toast } = useToast();
   const form = useForm<EditOrderSchema>({ resolver: zodResolver(editOrderSchema) });
@@ -306,22 +306,52 @@ export default function MasterShopifyOrdersPage() {
 
   const handleSubmitTrackingNumber = async (order: Order) => {
     if (!user || !firestore) return;
+  
     const trackingNumber = trackingNumbers[order.id];
-    if (!trackingNumber) { toast({ variant: "destructive", title: "Missing Tracking Number" }); return; }
-    startTransition(async () => {
-        const result = await updateOrderDetails({ 
-            orderId: order.id,
-            countryCode: order.countryCode,
-            customerName: order.customer.name, 
-            customerAddress: order.customer.address, 
-            customerPhone: order.customer.phone,
-            note: order.note,
-            trackingNumber 
+    if (!trackingNumber) {
+      toast({
+        variant: "destructive",
+        title: "Missing Tracking Number",
+      });
+      return;
+    }
+  
+    setSubmittingOrderId(order.id);
+  
+    try {
+      const result = await updateOrderDetails({
+        orderId: order.id,
+        countryCode: order.countryCode,
+        customerName: order.customer.name,
+        customerAddress: order.customer.address,
+        customerPhone: order.customer.phone,
+        note: order.note,
+        trackingNumber,
+      });
+  
+      if (result.success) {
+        toast({ title: "Tracking Submitted" });
+        setTrackingNumbers((prev) => ({
+          ...prev,
+          [order.id]: "",
+        }));
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Update Failed",
         });
-        if(result.success) { toast({ title: "Tracking Submitted"}); setTrackingNumbers(p => ({...p, [order.id]: ''})); } 
-        else { toast({ variant: "destructive", title: "Update Failed"}); }
-    });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Unexpected error",
+      });
+    } finally {
+      setSubmittingOrderId(null);
+    }
   };
+  
   
   const handleResetTrackingNumber = async (order: Order) => {
     if (!user || !firestore) return;
@@ -687,6 +717,8 @@ export default function MasterShopifyOrdersPage() {
   );
 
   const renderOrderCard = (order: Order, isShipped = false) => {
+    const isSubmittingThisOrder = submittingOrderId === order.id;
+
     // Cor da barra vertical por país
     const countryColor =
       order.countryCode === "PT" ? "#008000" : // Verde
@@ -702,7 +734,7 @@ export default function MasterShopifyOrdersPage() {
         key={order.id}
         className="relative overflow-hidden rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 bg-card"
         style={{
-          borderLeft: `8px solid ${countryColor}`,
+          borderLeft: `4px solid ${countryColor}`,
         }}
       >
         {/* Header */}
@@ -764,7 +796,7 @@ export default function MasterShopifyOrdersPage() {
                   );
                 })}
           </div>
-  
+
           {/* CUSTOMER + TRACKING (com colapso) */}
           <div className="flex flex-col gap-4">
             <div className="relative bg-black/30 border border-white/10 p-4 rounded-lg text-xs space-y-3">
@@ -818,14 +850,13 @@ export default function MasterShopifyOrdersPage() {
                     }
                     className="h-8 text-xs bg-black/30 border-white/10"
                   />
-
                   <Button
                     onClick={() => handleSubmitTrackingNumber(order)}
-                    disabled={isPending}
+                    disabled={isSubmittingThisOrder}
                     className="h-8 text-xs bg-purple-600 text-white hover:bg-purple-500 active:bg-purple-700 active:scale-[0.98]"
                     type="button"
                   >
-                    {isPending && (
+                    {isSubmittingThisOrder && (
                       <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
                     )}
                     Submit
@@ -944,7 +975,7 @@ export default function MasterShopifyOrdersPage() {
               <FormField control={form.control} name="note" render={({ field }) => <FormItem><FormLabel>Note</FormLabel><FormControl><Textarea {...field} placeholder="Add a manual note for this order..." /></FormControl><FormMessage /></FormItem>} />
               <DialogFooter className="pt-4">
                 <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-                <Button type="submit" disabled={isPending} className="bg-purple-600 text-white hover:bg-purple-500 active:bg-purple-700 active:scale-[0.98]">{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save Changes</Button>
+                <Button type="submit" className="bg-purple-600 text-white hover:bg-purple-500 active:bg-purple-700 active:scale-[0.98]" > Save Changes </Button>
               </DialogFooter>
             </form>
           </Form>
@@ -1058,38 +1089,71 @@ export default function MasterShopifyOrdersPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={activeFilter === 'ALL' ? 'default' : 'outline'}
-              onClick={() => { setActiveFilter('ALL'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
-              className="h-8 rounded-full text-xs px-3 border-white/10 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
+              onClick={() => {
+                setActiveFilter('ALL');
+                setSelectedOrderIdForSearch(null);
+                setPage(1);
+              }}
+              className={`
+                h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5
+                ${activeFilter === 'ALL'
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30'
+                }
+              `}
             >
-              ALL
-              {pendingCounts.ALL > 0 && (
+              <Globe className="h-3.5 w-3.5" />
+              <span>ALL</span>
+
+              {pendingCounts.ALL > 0 && activeFilter !== 'ALL' && (
                 <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
                   {pendingCounts.ALL}
                 </span>
               )}
             </Button>
-
             <Button
               variant={activeFilter === 'PT' ? 'default' : 'outline'}
-              onClick={() => { setActiveFilter('PT'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
-              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
+              onClick={() => {
+                setActiveFilter('PT');
+                setSelectedOrderIdForSearch(null);
+                setPage(1);
+              }}
+              className={`
+                h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5
+                ${activeFilter === 'PT'
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30'
+                }
+              `}
             >
               <FlagPT />
               <span>Portugal</span>
+
               {pendingCounts.PT > 0 && activeFilter !== 'PT' && (
                 <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
                   {pendingCounts.PT}
                 </span>
               )}
             </Button>
-
+            
             <Button
               variant={activeFilter === 'DE' ? 'default' : 'outline'}
-              onClick={() => { setActiveFilter('DE'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
-              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
+              onClick={() => {
+                setActiveFilter('DE');
+                setSelectedOrderIdForSearch(null);
+                setPage(1);
+              }}
+              className={`
+                h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5
+                ${activeFilter === 'DE'
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30'
+                }
+              `}
             >
               <FlagDE />
               <span>Germany</span>
+
               {pendingCounts.DE > 0 && activeFilter !== 'DE' && (
                 <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
                   {pendingCounts.DE}
@@ -1099,17 +1163,29 @@ export default function MasterShopifyOrdersPage() {
 
             <Button
               variant={activeFilter === 'ES' ? 'default' : 'outline'}
-              onClick={() => { setActiveFilter('ES'); setSelectedOrderIdForSearch(null); setPage(1); }} // Limpa filtro de busca
-              className="h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
+              onClick={() => {
+                setActiveFilter('ES');
+                setSelectedOrderIdForSearch(null);
+                setPage(1);
+              }}
+              className={`
+                h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5
+                ${activeFilter === 'ES'
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30'
+                }
+              `}
             >
               <FlagES />
               <span>Spain</span>
+
               {pendingCounts.ES > 0 && activeFilter !== 'ES' && (
                 <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
                   {pendingCounts.ES}
                 </span>
               )}
             </Button>
+
           </div>
 
         </div>
@@ -1127,11 +1203,25 @@ export default function MasterShopifyOrdersPage() {
         {/* Tabs como segmented control e Filtros Adicionais */} 
 <div className="mt-2 flex flex-wrap items-center gap-2 md:mt-0 md:ml-auto">
     <div className="inline-flex items-center rounded-full bg-black/40 p-1 border border-white/5">
-        <Button variant={orderTab === "pending" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "pending" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => { setOrderTab("pending"); setPage(1); }}>
-            Pending ({pendingOrders.length})
+            <Button
+          size="sm"
+          onClick={() => { setOrderTab("pending"); setPage(1); }}
+          className={`
+            h-8 rounded-full px-4 text-xs transition-colors
+            ${orderTab === "pending"
+              ? "bg-purple-600 text-white hover:bg-purple-700"
+              : "bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white" } `} >
+          Pending ({pendingOrders.length})
         </Button>
-        <Button variant={orderTab === "shipped" ? "default" : "ghost"} size="sm" className={`hover:text-white h-8 rounded-full px-4 text-xs transition-none ${orderTab === "shipped" ? "bg-purple-600 text-white" : "text-muted-foreground"}`} onClick={() => { setOrderTab("shipped"); setPage(1); }}>
-            Shipped ({shippedOrders.length})
+        <Button
+          size="sm"
+          onClick={() => { setOrderTab("shipped"); setPage(1); }}
+          className={`
+            h-8 rounded-full px-4 text-xs transition-colors
+            ${orderTab === "shipped"
+              ? "bg-purple-600 text-white hover:bg-purple-700"
+              : "bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white" } `} >
+          Shipped ({shippedOrders.length})
         </Button>
     </div>
 
