@@ -130,6 +130,18 @@ export default function MasterShopifyOrdersPage() {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   
+  const formatSizeForPdf = (size: unknown): string | string[] => {
+    if (!size) return "—";
+    const s = String(size).trim();
+    // Se contiver "years" (qualquer variação), força quebra de linha
+    if (/years/i.test(s)) {
+      return s
+        .replace(/years/i, "\nyears")
+        .split("\n");
+    }
+    return s;
+  };
+
   // ESTADO NOVO: Guarda o ID do pedido selecionado pela pesquisa
   const [selectedOrderIdForSearch, setSelectedOrderIdForSearch] = useState<string | null>(null);
 
@@ -513,6 +525,10 @@ export default function MasterShopifyOrdersPage() {
                 if (orderIndex > 0) {
                     pdf.addPage();
                     cursorY = marginY; 
+
+                    pdf.setDrawColor(0, 0, 0);
+                    pdf.setTextColor(0, 0, 0);
+                    pdf.setLineWidth(0.3);
                 } 
                 // Order Header
                 pdf.setFontSize(12);
@@ -524,30 +540,40 @@ export default function MasterShopifyOrdersPage() {
                 // Address and Tracking
                 pdf.setFontSize(8);
                 pdf.setFont("helvetica", "normal");
-                
-                // Lógica de Endereço Multi-Linha 
-                const addressText = toText(order.customer.address);
-                const addressLines = pdf.splitTextToSize(addressText, 70); 
 
-                // Desenha o número de telefone
-                pdf.text(`Phone: ${toText(order.customer.phone)}`, marginX + 80, cursorY); 
+                // 🔒 garantir texto visível
+                pdf.setTextColor(0, 0, 0);
 
-                // Desenha as linhas do endereço, avançando o Y
-                let currentAddressY = cursorY;
-                const addressLineSpacing = 4; 
-                addressLines.forEach((line: string) => {
-                  pdf.text(line, marginX, currentAddressY);
-                  currentAddressY += addressLineSpacing;
-                });
+                // Address (multi-line)
+const addressText = toText(order.customer.address);
+const addressLines = pdf.splitTextToSize(addressText, 70);
 
-                // Avança o cursor para a próxima secção
-                cursorY = currentAddressY + 1; 
+let currentAddressY = cursorY;
+const addressLineSpacing = 4;
+
+addressLines.forEach((line: string) => {
+  pdf.text(line, marginX, currentAddressY);
+  currentAddressY += addressLineSpacing;
+});
+
+// avançar cursor após a morada
+cursorY = currentAddressY + 1;
+
+                // Phone (à direita do bloco)
+                pdf.text(
+                  `Phone: ${toText(order.customer.phone)}`,
+                  marginX + 80,
+                  cursorY - addressLineSpacing
+                );
 
                 // Draw the Tracking number
                 pdf.text(`Tracking: ${toText(order.trackingNumber)}`, marginX, cursorY);
                 cursorY += 6; 
-  
+
                 // Table Header
+                pdf.setDrawColor(0, 0, 0);
+                pdf.setLineWidth(0.3);
+
                 pdf.setFontSize(10);
                 pdf.setFont("helvetica", "bold");
                 let headerX = marginX;
@@ -561,97 +587,136 @@ export default function MasterShopifyOrdersPage() {
                 pdf.setFontSize(8);
   
                 for (const item of order.items) {
-                    // Check if item row fits
-                    if (cursorY + rowHeight > pageHeight - marginY) {
-                        pdf.addPage();
-                        cursorY = marginY;
-                        
-                        // New page header for continuation
-                        pdf.setFontSize(12);
-                        pdf.setFont("helvetica", "bold");
-                        pdf.text(
-                            `Order ${order.id.replace(/^#/, "")} — (cont.)`,
-                            marginX,
-                            cursorY
-                        );
-                        cursorY += 6;
-                        
-                        // Repeat table header on continuation page
-                        pdf.setFontSize(10);
-                        pdf.setFont("helvetica", "bold");
-                        let contHeaderX = marginX;
-                        columns.forEach((col) => {
-                            pdf.rect(contHeaderX, cursorY, col.width, 8);
-                            pdf.text(col.label, contHeaderX + 2, cursorY + 5);
-                            contHeaderX += col.width;
-                        });
-                        cursorY += 8;
-                        pdf.setFont("helvetica", "normal");
-                        pdf.setFontSize(8);
-                    }
-  
-                    // Drawing cells
-                    let cellX = marginX;
-                    columns.forEach((col) => {
-                        pdf.rect(cellX, cursorY, col.width, rowHeight);
-                        cellX += col.width;
-                    });
-            
-                    // Thumbnail
-                    const validThumb = item.thumbnailUrl && item.thumbnailUrl !== "null" && item.thumbnailUrl !== "undefined" && item.thumbnailUrl.trim() !== "" && item.thumbnailUrl.startsWith("http");
-                    const thumbUrl = validThumb ? item.thumbnailUrl : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
-  
-                    try {
-                        const imgData = await loadImageAsDataURL(thumbUrl);
-                        pdf.addImage(imgData, "JPEG", marginX + 4, cursorY + 4, thumbSize, thumbSize);
-                    } catch (imgError) {
-                        console.error("Error loading image:", imgError);
-                        pdf.text("Image N/A", marginX + 4, cursorY + rowHeight / 2);
-                    }
-  
-                    // CORREÇÃO 1: Product Name and ID (Column 2) - Altura dinâmica
-                    const productName = toText(item.name);
-                    const productNameLines = pdf.splitTextToSize(productName, columns[1].width - 4);
-                    const lineSpacing = 3.5; 
 
-                    let currentNameY = cursorY + 5; 
-                    productNameLines.forEach((line: string) => {
-                      pdf.text(line, marginX + columns[0].width + 2, currentNameY);
-                      currentNameY += lineSpacing;
-                    });
-                    
+                  const lineSpacing = 3.5;
 
-                    // Posição do ID: Abaixo do Nome + margem segura
-                    const productIdY = currentNameY + 1.5; 
-                    pdf.text(`ID: ${toText(item.productId)}`, marginX + columns[0].width + 2, productIdY);
-                    
-                    // CORREÇÃO 2: Size e Qty - Centrado Horizontal e Vertical
-                    // Size (Column 3)
-                    const sizeCenterX = marginX + columns[0].width + columns[1].width + (columns[2].width / 2);
-                    pdf.text(toText(item.size), sizeCenterX, cursorY + rowHeight / 2 + 2, { align: "center" }); 
+                  // product name
+                  const productNameLines = pdf.splitTextToSize(
+                    toText(item.name),
+                    columns[1].width - 4
+                  );
+                  
+                  // customization (DECLARADO UMA ÚNICA VEZ)
+                  const custLines = pdf.splitTextToSize(
+                    toText(item.customization),
+                    columns[5].width - 4
+                  );
+                  
+                  // altura real necessária
+                  const textBlockHeight = Math.max(
+                    productNameLines.length * lineSpacing + 8, // nome + ID
+                    custLines.length * lineSpacing + 4,
+                    thumbSize + 8
+                  );
+                  
+                  const dynamicRowHeight = Math.max(26, textBlockHeight);
+                  
+                  // Check if item row fits
+                  if (cursorY + dynamicRowHeight > pageHeight - marginY) {
+                      pdf.addPage();
+                      cursorY = marginY;
+                      pdf.setDrawColor(0, 0, 0);
+                      pdf.setTextColor(0, 0, 0);
+                      pdf.setLineWidth(0.3);
 
-                    // Qty (Column 4)
-                    const qtyCenterX = marginX + columns[0].width + columns[1].width + columns[2].width + (columns[3].width / 2);
-                    pdf.text(toText(item.quantity), qtyCenterX, cursorY + rowHeight / 2 + 2, { align: "center" }); 
+                      // New page header for continuation
+                      pdf.setFontSize(12);
+                      pdf.setFont("helvetica", "bold");
+                      pdf.text(
+                          `Order ${order.id.replace(/^#/, "")} — (cont.)`,
+                          marginX,
+                          cursorY
+                      );
+                      cursorY += 8;
+                      
+                      // Repeat table header on continuation page
+                      pdf.setFontSize(10);
+                      pdf.setFont("helvetica", "bold");
+                      let contHeaderX = marginX;
+                      columns.forEach((col) => {
+                          pdf.rect(contHeaderX, cursorY, col.width, 8);
+                          pdf.text(col.label, contHeaderX + 2, cursorY + 5);
+                          contHeaderX += col.width;
+                      });
+                      cursorY += 8;
+                      pdf.setFont("helvetica", "normal");
+                      pdf.setFontSize(8);
+                  }
 
-                    // Version (Column 5)
-                    pdf.text(toText(item.version), marginX + columns[0].width + columns[1].width + columns[2].width + columns[3].width + 2, cursorY + rowHeight / 2 + 2, { maxWidth: columns[4].width - 4 });
-            
-                    // CORREÇÃO 3: Customization (Column 6) - Centrado Verticalmente (à esquerda)
-                    const custText = toText(item.customization);
-                    const custLines = pdf.splitTextToSize(custText, columns[5].width - 4);
-                    const textH = custLines.length * lineSpacing; 
+                  // Drawing cells
+                  pdf.setDrawColor(0, 0, 0);
 
-                    // Y para texto centrado verticalmente
-                    const centeredY = cursorY + (rowHeight / 2) - (textH / 2) + (lineSpacing / 2); 
+                  let cellX = marginX;
+                  columns.forEach((col) => {
+                    pdf.rect(cellX, cursorY, col.width, dynamicRowHeight);
+                      cellX += col.width;
+                  });
+          
+                  // Thumbnail
+                  const validThumb = item.thumbnailUrl && item.thumbnailUrl !== "null" && item.thumbnailUrl !== "undefined" && item.thumbnailUrl.trim() !== "" && item.thumbnailUrl.startsWith("http");
+                  const thumbUrl = validThumb ? item.thumbnailUrl : "https://placehold.co/80x80/e2e8f0/64748b?text=N/A";
 
-                    pdf.text(
-                        custLines,
-                        marginX + columns[0].width + columns[1].width + columns[2].width + columns[3].width + columns[4].width + 2, 
-                        centeredY
-                    );
-  
-                    cursorY += rowHeight;
+                  try {
+                      const imgData = await loadImageAsDataURL(thumbUrl);
+                      const imgY = cursorY + (dynamicRowHeight - thumbSize) / 2;
+                      pdf.addImage(imgData, "JPEG", marginX + 4, imgY, thumbSize, thumbSize);
+                  } catch (imgError) {
+                      console.error("Error loading image:", imgError);
+                      pdf.text("Image N/A", marginX + 4, cursorY + rowHeight / 2);
+                  }
+
+                  // CORREÇÃO 1: Product Name and ID (Column 2) - Altura dinâmica
+                  const productName = toText(item.name);
+
+                  let currentNameY = cursorY + 5; 
+                  productNameLines.forEach((line: string) => {
+                    pdf.text(line, marginX + columns[0].width + 2, currentNameY);
+                    currentNameY += lineSpacing;
+                  });
+                  
+
+                  // Posição do ID: Abaixo do Nome + margem segura
+                  const productIdY = currentNameY + 1.5; 
+                  pdf.text(`ID: ${toText(item.productId)}`, marginX + columns[0].width + 2, productIdY);
+                  
+                  // CORREÇÃO 2: Size e Qty - Centrado Horizontal e Vertical
+                  const centerY = cursorY + dynamicRowHeight / 2 + 2;
+                  // Size (Column 3)
+                  const sizeCenterX = marginX + columns[0].width + columns[1].width + (columns[2].width / 2);
+                  
+                  const formattedSize = formatSizeForPdf(item.size);
+                  pdf.text(
+                    formattedSize,
+                    sizeCenterX,
+                    cursorY + dynamicRowHeight / 2 - 2,
+                    { align: "center" }
+                  );
+
+                  // Qty (Column 4)
+                  const qtyCenterX = marginX + columns[0].width + columns[1].width + columns[2].width + (columns[3].width / 2);
+                  pdf.text(toText(item.quantity), qtyCenterX, centerY, { align: "center" });
+
+                  // Version (Column 5)
+                  pdf.text(
+                    toText(item.version),
+                    marginX + columns[0].width + columns[1].width + columns[2].width + columns[3].width + 2,
+                    centerY,
+                    { maxWidth: columns[4].width - 4 }
+                  );
+          
+                  // CORREÇÃO 3: Customization (Column 6) - Centrado Verticalmente (à esquerda)
+                  const textH = custLines.length * lineSpacing; 
+
+                  // Y para texto centrado verticalmente
+                  const centeredY = cursorY + dynamicRowHeight / 2 - textH / 2 + lineSpacing / 2;
+
+                  pdf.text(
+                      custLines,
+                      marginX + columns[0].width + columns[1].width + columns[2].width + columns[3].width + columns[4].width + 2, 
+                      centeredY
+                  );
+
+                  cursorY += dynamicRowHeight;
                 }
   
                 // Order Note
@@ -663,6 +728,10 @@ export default function MasterShopifyOrdersPage() {
                     if (cursorY + noteLines.length * 6 + 7 > pageHeight - marginY) {
                         pdf.addPage();
                         cursorY = marginY;
+
+                        pdf.setDrawColor(0, 0, 0);
+                        pdf.setTextColor(0, 0, 0);
+                        pdf.setLineWidth(0.3);
                     }
   
                     pdf.setFontSize(8);
