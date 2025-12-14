@@ -544,12 +544,26 @@ export default function MasterShopifyOrdersPage() {
                 // 🔒 garantir texto visível
                 pdf.setTextColor(0, 0, 0);
 
-                // Address (multi-line)
+// Address (multi-line)
 const addressText = toText(order.customer.address);
 const addressLines = pdf.splitTextToSize(addressText, 70);
 
-let currentAddressY = cursorY;
 const addressLineSpacing = 4;
+const minAddressHeight = addressLines.length * addressLineSpacing + 6;
+
+// 🔒 FIX 2 — garantir que a morada cabe na página
+if (cursorY + minAddressHeight > pageHeight - marginY) {
+  pdf.addPage();
+  cursorY = marginY;
+
+  // IMPORTANTÍSSIMO: resetar estado visual
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setLineWidth(0.3);
+}
+
+// agora SIM, desenhar a morada
+let currentAddressY = cursorY;
 
 addressLines.forEach((line: string) => {
   pdf.text(line, marginX, currentAddressY);
@@ -558,6 +572,7 @@ addressLines.forEach((line: string) => {
 
 // avançar cursor após a morada
 cursorY = currentAddressY + 1;
+
 
                 // Phone (à direita do bloco)
                 pdf.text(
