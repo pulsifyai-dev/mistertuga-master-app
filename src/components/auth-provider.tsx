@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
@@ -8,8 +8,7 @@ import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
-  role: 'ADMIN' | 'BASIC' | null;
-  // 💡 MUDANÇA 1: Adicionar isAdmin ao Contexto
+  role: 'ADMIN' | 'FORNECEDOR' | null; // <-- Corrigido para FORNECEDOR
   isAdmin: boolean; 
   loading: boolean;
   signOut: () => Promise<void>;
@@ -19,16 +18,21 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<'ADMIN' | 'BASIC' | null>(null);
+  const [role, setRole] = useState<'ADMIN' | 'FORNECEDOR' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUser(user);
-        const tokenResult = await user.getIdTokenResult();
-        const userRole = (tokenResult.claims.role as 'ADMIN' | 'BASIC') || 'BASIC';
-        setRole(userRole);
+        try {
+          const tokenResult = await user.getIdTokenResult();
+          const userRole = (tokenResult.claims.role as 'ADMIN' | 'FORNECEDOR') || 'FORNECEDOR'; // <-- Corrigido
+          setRole(userRole);
+        } catch (error) {
+          console.error("Error fetching custom claims:", error);
+          setRole('FORNECEDOR'); // Assume a role mais restritiva em caso de erro
+        }
       } else {
         setUser(null);
         setRole(null);
@@ -40,15 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Só precisamos de chamar o signOut do Firebase.
+    // O onAuthStateChanged tratará de limpar o estado (user e role).
     await firebaseSignOut(auth);
-    setUser(null);
-    setRole(null);
   };
   
-  // 💡 MUDANÇA 2: Definir isAdmin aqui (para o frontend)
   const isAdmin = role === 'ADMIN';
 
-  // 💡 MUDANÇA 3: Exportar isAdmin no valor
   const value = { user, role, isAdmin, loading, signOut }; 
 
   return (
@@ -63,3 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+// Hook personalizado para facilitar o uso do contexto
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

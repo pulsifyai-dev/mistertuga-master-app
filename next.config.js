@@ -1,8 +1,5 @@
-
-import type {NextConfig} from 'next';
-
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,7 +7,6 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  // ADICIONA ESTA NOVA SECÇÃO:
   experimental: {
     serverComponentsExternalPackages: ['firebase-admin'],
   },
@@ -32,9 +28,9 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'cdn.shopify.com',
-      }
+      },
     ],
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
