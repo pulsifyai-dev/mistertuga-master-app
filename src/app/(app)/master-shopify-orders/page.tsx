@@ -290,19 +290,40 @@ export default function MasterShopifyOrdersPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleUpdateOrder = (data: EditOrderSchema) => {
+  const handleUpdateOrder = async (data: EditOrderSchema) => {
     if (!editingOrder) return;
-    startTransition(async () => {
-      const result = await updateOrderDetails({ orderId: editingOrder.id, countryCode: editingOrder.countryCode, ...data });
+  
+    try {
+      const result = await updateOrderDetails({
+        orderId: editingOrder.id,
+        countryCode: editingOrder.countryCode,
+        ...data,
+      });
+  
       if (result.success) {
-        toast({ title: 'Order Updated', description: 'The details have been saved successfully.' });
+        toast({
+          title: 'Order Updated',
+          description: 'The details have been saved successfully.',
+        });
         setIsEditModalOpen(false);
       } else {
-        toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not save the details.' });
-        console.error("Failed to update order:", result.error);
+        toast({
+          variant: 'destructive',
+          title: 'Update Failed',
+          description: 'Could not save the details.',
+        });
+        console.error('Failed to update order:', result.error);
       }
-    });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Unexpected Error',
+        description: 'Something went wrong while updating the order.',
+      });
+      console.error('Unexpected error updating order:', error);
+    }
   };
+  
 
   const handleSubmitTrackingNumber = async (order: Order) => {
     if (!user || !firestore) return;
@@ -493,7 +514,6 @@ export default function MasterShopifyOrdersPage() {
                     pdf.addPage();
                     cursorY = marginY; 
                 } 
-
                 // Order Header
                 pdf.setFontSize(12);
                 pdf.setFont("helvetica", "bold");
@@ -515,9 +535,9 @@ export default function MasterShopifyOrdersPage() {
                 // Desenha as linhas do endereço, avançando o Y
                 let currentAddressY = cursorY;
                 const addressLineSpacing = 4; 
-                addressLines.forEach((line) => {
-                    pdf.text(line, marginX, currentAddressY);
-                    currentAddressY += addressLineSpacing; 
+                addressLines.forEach((line: string) => {
+                  pdf.text(line, marginX, currentAddressY);
+                  currentAddressY += addressLineSpacing;
                 });
 
                 // Avança o cursor para a próxima secção
@@ -595,10 +615,11 @@ export default function MasterShopifyOrdersPage() {
                     const lineSpacing = 3.5; 
 
                     let currentNameY = cursorY + 5; 
-                    productNameLines.forEach((line) => {
-                        pdf.text(line, marginX + columns[0].width + 2, currentNameY);
-                        currentNameY += lineSpacing;
+                    productNameLines.forEach((line: string) => {
+                      pdf.text(line, marginX + columns[0].width + 2, currentNameY);
+                      currentNameY += lineSpacing;
                     });
+                    
 
                     // Posição do ID: Abaixo do Nome + margem segura
                     const productIdY = currentNameY + 1.5; 
@@ -656,9 +677,9 @@ export default function MasterShopifyOrdersPage() {
                     pdf.text("NOTE:", marginX + 2, noteY);
                     pdf.setFont("helvetica", "normal");
                     noteY += 5;
-                    noteLines.forEach((line) => {
-                        pdf.text(line, marginX + 3, noteY);
-                        noteY += 5;
+                    noteLines.forEach((line: string) => {
+                      pdf.text(line, marginX + 3, noteY);
+                      noteY += 5;
                     });
                     cursorY += noteLines.length * 6 + 7;
                 }
