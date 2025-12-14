@@ -11,7 +11,7 @@ const updateOrderSchema = z.object({
   customerAddress: z.string().min(1),
   customerPhone: z.string().min(1),
   trackingNumber: z.string().optional(),
-  note: z.string().optional(), // Added note field
+  note: z.string().optional(),
 });
 
 export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>) {
@@ -26,29 +26,85 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
   try {
     const orderRef = adminDb.collection('orders').doc(countryCode).collection('orders').doc(orderId);
 
+    // 1. Ler os dados atuais
+    const doc = await orderRef.get();
+    if (!doc.exists) {
+        return { success: false, error: 'Order not found.' };
+    }
+    const currentData = doc.data();
+
+    // 2. Preparar payload de atualização
     const updatePayload: { [key: string]: any } = {
       'customer.name': customerName,
       'customer.address': customerAddress,
       'customer.phone': customerPhone.replace(/\s/g, ''),
-      note: note || '', // Add or clear the note
+      note: note || '',
     };
 
     if (trackingNumber) {
       updatePayload.trackingNumber = trackingNumber;
-      const doc = await orderRef.get();
-      if (doc.exists && doc.data()?.status === 'Pending Production') {
+      if (currentData?.status === 'Pending Production') {
         updatePayload.status = 'Shipped';
       }
     }
 
+    // 3. Atualizar na Base de Dados
     await orderRef.update(updatePayload);
 
-    revalidatePath('/master-shopify-orders');
+    // 4. Enviar Webhook
+    try {
+      const settingsDoc = await adminDb.collection('settings').doc('tracking').get();
+      const webhookUrl = settingsDoc.data()?.webhookUrl;
 
+      if (webhookUrl) {
+        // Combinar dados antigos com os novos para enviar objeto completo
+        const webhookPayload = {
+            ...currentData,
+            customer: {
+                ...currentData?.customer,
+                name: customerName,
+                address: customerAddress,
+                phone: customerPhone.replace(/\s/g, ''),
+            },
+            note: note || '',
+            trackingNumber: trackingNumber || currentData?.trackingNumber,
+            status: updatePayload.status || currentData?.status,
+            orderId: orderId,
+            countryCode: countryCode,
+            updatedAt: new Date().toISOString()
+        };
+
+        console.log(`Sending webhook to ${webhookUrl}`);
+        const webhookResponse = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(webhookPayload),
+        });
+
+        if (!webhookResponse.ok) {
+          console.error(`Webhook failed with status: ${webhookResponse.status}`);
+        } else {
+            console.log("Webhook sent successfully");
+        }
+      } else {
+          console.warn("No webhook URL found in settings/tracking");
+      }
+    } catch (webhookError) {
+      console.error("Error sending webhook:", webhookError);
+      // Não falhamos a operação principal se o webhook falhar
+    }
+
+    revalidatePath('/master-shopify-orders');
     return { success: true };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating order details:", error);
-    return { success: false, error: 'An unexpected server error occurred.' };
+    
+    // Verificação específica de erro de credenciais
+    if (error.message && error.message.includes("Firebase Admin SDK environment variables are not set")) {
+        return { success: false, error: "Erro de Servidor: Credenciais Firebase em falta." };
+    }
+
+    return { success: false, error: error.message || 'An unexpected server error occurred.' };
   }
 }
