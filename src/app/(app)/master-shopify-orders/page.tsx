@@ -582,7 +582,8 @@ cursorY = currentAddressY + 1;
                 );
 
                 // Draw the Tracking number
-                pdf.text(`Tracking: ${toText(order.trackingNumber)}`, marginX, cursorY);
+                const cleanTrackingPDF = order.trackingNumber ? order.trackingNumber.replace(/^TN_/, "") : "";
+                pdf.text(`Tracking: ${toText(cleanTrackingPDF)}`, marginX, cursorY);
                 cursorY += 6; 
 
                 // Table Header
@@ -803,9 +804,15 @@ cursorY = currentAddressY + 1;
     ES: orders.filter(o => o.countryCode === 'ES' && o.status === 'Pending Production').length,
   };
 
-  const pendingOrders = filteredOrders.filter(o => o.status === 'Pending Production');
-  const shippedOrders = filteredOrders.filter(o => o.status === 'Shipped');
+  // ATUALIZE ESTAS LINHAS:
+  const pendingOrders = filteredOrders.filter(o => 
+    o.status === 'Pending Production' && (!o.trackingNumber || o.trackingNumber.trim() === "")
+  );
 
+  const shippedOrders = filteredOrders.filter(o => 
+    o.status === 'Shipped' || (!!o.trackingNumber && o.trackingNumber.trim() !== "")
+  );
+  
   // Select list based on tab
   let listToShow = orderTab === "pending" ? pendingOrders : shippedOrders;
 
@@ -822,6 +829,9 @@ cursorY = currentAddressY + 1;
   );
 
   const renderOrderCard = (order: Order, isShipped = false) => {
+    
+    const displayTracking = order.trackingNumber ? order.trackingNumber.replace(/^TN_/, "") : "";
+    
     const isSubmittingThisOrder = submittingOrderId === order.id;
 
     // Cor da barra vertical por país
@@ -890,7 +900,8 @@ cursorY = currentAddressY + 1;
                         <p className="text-muted-foreground">Size: {item.size ?? "—"}  /  Qty: {item.quantity ?? 0}</p>
                         <p className="text-muted-foreground">
                           Version:{" "}
-                          {item.version === "Player Edition" ? (
+                         
+                         {item.version === "Player Edition" ? (
                             <strong>{item.version}</strong>
                           ) : (
                             item.version ?? "—"
@@ -930,7 +941,7 @@ cursorY = currentAddressY + 1;
                   <p className="font-semibold">
                     Tracking:{" "}
                     <span className="font-normal text-primary">
-                      {order.trackingNumber}
+                      {displayTracking}
                     </span>
                   </p>
 
@@ -949,7 +960,7 @@ cursorY = currentAddressY + 1;
                   <Input
                     type="text"
                     placeholder="Tracking Number"
-                    value={trackingNumbers[order.id] || ""}
+                    value={trackingNumbers[order.id] ?? order.trackingNumber ?? ""}
                     onChange={(e) =>
                       handleTrackingNumberChange(order.id, e.target.value)
                     }
