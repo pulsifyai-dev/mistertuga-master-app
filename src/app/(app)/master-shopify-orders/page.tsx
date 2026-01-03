@@ -44,7 +44,9 @@ type EditOrderSchema = z.infer<typeof editOrderSchema>;
 const FlagPT = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 20 15"><path fill="#006233" d="M0 0h8v15H0z"/><path fill="#D21034" d="M8 0h12v15H8z"/><circle cx="8" cy="7.5" r="2.5" fill="#FFE000"/><path fill="none" stroke="#D21034" strokeWidth="0.5" d="M8 5a2.5 2.5 0 000 5m-1.5-3.5h3"/></svg>;
 const FlagDE = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 20 15"><path fill="#000" d="M0 0h20v5H0z"/><path fill="#D00" d="M0 5h20v5H0z"/><path fill="#FFCE00" d="M0 10h20v5H0z"/></svg>;
 const FlagES = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 20 15"><path fill="#C60B1E" d="M0 0h20v3.75H0zM0 11.25h20V15H0z"/><path fill="#FFC400" d="M0 3.75h20v7.5H0z"/></svg>;
-const countryFlags: { [key: string]: React.ReactNode } = { PT: <FlagPT />, DE: <FlagDE />, ES: <FlagES /> };
+const FlagUK = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="15" viewBox="0 0 60 30"><clipPath id="s"><path d="M0,0 v30 h60 v-30 z"/></clipPath><path d="M0,0 v30 h60 v-30 z" fill="#012169"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" strokeWidth="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" strokeWidth="4"/><path d="M30,0 v30 M0,15 h60" stroke="#fff" strokeWidth="10"/><path d="M30,0 v30 M0,15 h60" stroke="#C8102E" strokeWidth="6"/></svg>;
+
+const countryFlags: { [key: string]: React.ReactNode } = { PT: <FlagPT />, DE: <FlagDE />, ES: <FlagES />, GB: <FlagUK /> };
 
 // --- Date Filter Components ---
 const MONTHS = [
@@ -802,6 +804,7 @@ cursorY = currentAddressY + 1;
     PT: orders.filter(o => o.countryCode === 'PT' && o.status === 'Pending Production').length,
     DE: orders.filter(o => o.countryCode === 'DE' && o.status === 'Pending Production').length,
     ES: orders.filter(o => o.countryCode === 'ES' && o.status === 'Pending Production').length,
+    GB: orders.filter(o => o.countryCode === 'GB' && o.status === 'Pending Production').length,
   };
 
   // ATUALIZE ESTAS LINHAS:
@@ -839,6 +842,7 @@ cursorY = currentAddressY + 1;
       order.countryCode === "PT" ? "#008000" : // Verde
       order.countryCode === "DE" ? "#FFCE00" : // Amarelo
       order.countryCode === "ES" ? "#C60B1E" : // Vermelho
+      order.countryCode === "GB" ? "#0000FF" : // Blue
       "#888"; // fallback
     
     const isExpanded = !!expandedOrders[order.id];
@@ -1252,6 +1256,31 @@ cursorY = currentAddressY + 1;
               )}
             </Button>
             
+            <Button
+              variant={activeFilter === 'GB' ? 'default' : 'outline'}
+              onClick={() => {
+                setActiveFilter('GB');
+                setSelectedOrderIdForSearch(null);
+                setPage(1);
+              }}
+              className={`
+                h-8 rounded-full text-xs px-3 border-white/10 flex items-center gap-1.5
+                ${activeFilter === 'GB'
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30'
+                }
+              `}
+            >
+              <FlagUK />
+              <span>UK</span>
+
+              {pendingCounts.GB > 0 && activeFilter !== 'GB' && (
+                <span className="ml-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                  {pendingCounts.GB}
+                </span>
+              )}
+            </Button>
+
             <Button
               variant={activeFilter === 'DE' ? 'default' : 'outline'}
               onClick={() => {
