@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { updateOrderDetails } from './actions';
 import jsPDF from 'jspdf';
+import * as XLSX from "xlsx";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, ChevronUp, Eye, EyeOff, Globe } from "lucide-react";
@@ -795,6 +796,122 @@ cursorY = currentAddressY + 1;
     }
   };
     
+  const handleExportCurrentListXLSX = () => {
+    try {
+      let ordersToExport = orderTab === "pending" ? pendingOrders : shippedOrders;
+  
+      if (selectedOrderIdForSearch) {
+        ordersToExport = ordersToExport.filter((o) => o.id === selectedOrderIdForSearch);
+      }
+  
+      if (ordersToExport.length === 0) {
+        toast({
+          title: "No Orders",
+          description: "There are no orders to export with the current filters.",
+        });
+        return;
+      }
+  
+      const rows = ordersToExport.flatMap((order) =>
+        (order.items || []).map((item) => {
+          const variants = [item.size, item.customization].filter(Boolean).join(" ; ");
+  
+          return {
+            "Name of the item": item.name ?? "",
+            "Quantity": item.quantity ?? "",
+            "Customer name": order.customer?.name ?? "",
+            "Address": order.customer?.address ?? "",
+            "Variants (Size ; customization)": variants,
+            "Version": item.version ?? "",
+            "thumbnailUrl": item.thumbnailUrl ?? "",
+          };
+        })
+      );
+  
+      if (rows.length === 0) {
+        toast({
+          title: "No Items",
+          description: "There are no items to export in the current list.",
+        });
+        return;
+      }
+  
+      const header = [
+        "Name of the item",
+        "Quantity",
+        "Customer name",
+        "Address",
+        "Variants (Size ; customization)",
+        "Version",
+        "thumbnailUrl",
+      ];
+  
+      const ws = XLSX.utils.json_to_sheet(rows, { header });
+  
+      // Coluna "thumbnailUrl" -> fórmula IMAGE("url";4;100;100)
+      const escapeForFormula = (url: string) => url.replace(/"/g, '""');
+      const thumbColIndex = header.indexOf("thumbnailUrl"); // 6
+  
+      for (let i = 0; i < rows.length; i++) {
+        const rowNumberInSheet = i + 1; // 0=header, 1=primeira linha dados
+        const cellAddress = XLSX.utils.encode_cell({ r: rowNumberInSheet, c: thumbColIndex });
+  
+        const thumbUrl = (rows[i] as any)["thumbnailUrl"] ?? "";
+  
+        if (thumbUrl) {
+          // texto literal, não fórmula
+          ws[cellAddress] = {
+            t: "s",
+            v: `=IMAGE("${escapeForFormula(thumbUrl)}";4;100;100)`,
+          };
+        } else {
+          ws[cellAddress] = { t: "s", v: "" };
+        }
+      }
+  
+      ws["!cols"] = [
+        { wch: 35 },
+        { wch: 10 },
+        { wch: 24 },
+        { wch: 45 },
+        { wch: 38 },
+        { wch: 12 },
+        { wch: 60 },
+      ];
+  
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Current List");
+  
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbout], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+  
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+  
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      a.download = `current-list-${orderTab}-${stamp}.xlsx`;
+  
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+  
+      toast({
+        title: "XLSX exported",
+        description: `Exported ${rows.length} line(s) from the current list.`,
+      });
+    } catch (err) {
+      console.error("XLSX export error:", err);
+      toast({
+        title: "Export failed",
+        description: "Something went wrong while exporting the XLSX.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (pageLoading || isUserLoading) return <div className="flex h-[400px] w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!user) return <div className="text-center"><h1 className="font-headline text-2xl font-bold">Access Denied</h1><p>Please log in.</p></div>;
@@ -1402,13 +1519,21 @@ cursorY = currentAddressY + 1;
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-auto bg-black/80 backdrop-blur-md border-white/10">
-                <DropdownMenuItem 
-                    onClick={handleExportPackingSheetPDF} 
-                    className="text-sm font-medium focus:bg-purple-500/20 cursor-pointer"
-                >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export Current List (PDF)
-                </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleExportPackingSheetPDF} 
+                className="text-sm font-medium focus:bg-purple-500/20 cursor-pointer"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export Current List (PDF)
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={handleExportCurrentListXLSX}
+                className="text-sm font-medium focus:bg-purple-500/20 cursor-pointer"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export Current List (XLSX)
+              </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
 
