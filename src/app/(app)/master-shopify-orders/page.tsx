@@ -183,35 +183,30 @@ export default function MasterShopifyOrdersPage() {
         const data = doc.data() as FirestoreOrder;
         
         let finalDate = "";
+        // --- Lógica de Formatação da Data (Mantida e Refinada) ---
         if (data.date instanceof Timestamp) {
-          // Caso Firestore Timestamp
           const d = data.date.toDate();
           const yyyy = d.getFullYear();
           const mm = String(d.getMonth() + 1).padStart(2, "0");
           const dd = String(d.getDate()).padStart(2, "0");
           const hh = String(d.getHours()).padStart(2, "0");
           const min = String(d.getMinutes()).padStart(2, "0");
-        
           finalDate = `${yyyy}-${mm}-${dd} | ${hh}:${min} PT`;
         } else {
-          // Caso seja string que vem do Shopify ("3 de dezembro de 2025 às 23:36:17 UTC")
           const raw = String(data.date);
-        
           const timeMatch = raw.match(/\d{1,2}:\d{2}/);
           const time = timeMatch ? timeMatch[0] : "";
-        
           const parsed = new Date(raw);
-        
           if (!isNaN(parsed.getTime())) {
             const yyyy = parsed.getFullYear();
             const mm = String(parsed.getMonth() + 1).padStart(2, "0");
             const dd = String(parsed.getDate()).padStart(2, "0");
-        
             finalDate = `${yyyy}-${mm}-${dd}${time ? ` | ${time} PT` : ""}`;
           } else {
             finalDate = raw;
           }
-        }        
+        }
+
         const customer: Customer = {
           name: data.customer?.name || '',
           address: data.customer?.address || '',
@@ -219,9 +214,22 @@ export default function MasterShopifyOrdersPage() {
         };
         return { ...data, id: doc.id, date: finalDate, customer, items: data.items || [] } as Order;
       });
-      setOrders(allOrders);
+      // 🔴 ADICIONA ESTA PARTE PARA ORDENAR:
+      const sortedOrders = allOrders.sort((a, b) => {
+        // Removemos o " PT" e o "|" para o JS conseguir ler a data corretamente no sort
+        const dateA = new Date(a.date.replace(" | ", " ").replace(" PT", "")).getTime();
+        const dateB = new Date(b.date.replace(" | ", " ").replace(" PT", "")).getTime();
+        
+        // Ordenação Descendente: Da mais recente para a mais antiga
+        return dateA - dateB; 
+      });
+
+      setOrders(sortedOrders); // Define a lista já ordenada
       setPageLoading(false);
-    }, (error) => { console.error("Error fetching orders: ", error); setPageLoading(false); });
+      }, (error) => { 
+      console.error("Error fetching orders: ", error); 
+      setPageLoading(false); 
+      });
     return () => unsubscribe();
   }, [user, isUserLoading, firestore]);
 
@@ -812,18 +820,20 @@ cursorY = currentAddressY + 1;
         return;
       }
   
+      // 1. Mapeamento dos dados com a nova coluna "Order Name"
       const rows = ordersToExport.flatMap((order) =>
         (order.items || []).map((item) => {
           const variants = [item.size, item.customization].filter(Boolean).join(" ; ");
   
           return {
+            "Order Name": order.id, // ⬅️ Adicionado: ex #5904
             "Name of the item": item.name ?? "",
             "Quantity": item.quantity ?? "",
             "Customer name": order.customer?.name ?? "",
             "Address": order.customer?.address ?? "",
             "Variants (Size ; customization)": variants,
             "Version": item.version ?? "",
-            "thumbnailUrl": item.thumbnailUrl ?? "",
+            "thumbnailUrl": item.thumbnailUrl ?? "", // Será apenas texto
           };
         })
       );
@@ -836,7 +846,9 @@ cursorY = currentAddressY + 1;
         return;
       }
   
+      // 2. Definição dos Cabeçalhos (incluindo Order Name)
       const header = [
+        "Order Name", // ⬅️ Nova Coluna
         "Name of the item",
         "Quantity",
         "Customer name",
@@ -848,35 +860,32 @@ cursorY = currentAddressY + 1;
   
       const ws = XLSX.utils.json_to_sheet(rows, { header });
   
-      // Coluna "thumbnailUrl" -> fórmula IMAGE("url";4;100;100)
-      const escapeForFormula = (url: string) => url.replace(/"/g, '""');
-      const thumbColIndex = header.indexOf("thumbnailUrl"); // 6
+      // 3. Garantir apenas LINK DIRETO na coluna thumbnailUrl
+      const thumbColIndex = header.indexOf("thumbnailUrl"); 
   
       for (let i = 0; i < rows.length; i++) {
-        const rowNumberInSheet = i + 1; // 0=header, 1=primeira linha dados
+        const rowNumberInSheet = i + 1; 
         const cellAddress = XLSX.utils.encode_cell({ r: rowNumberInSheet, c: thumbColIndex });
   
         const thumbUrl = (rows[i] as any)["thumbnailUrl"] ?? "";
   
-        if (thumbUrl) {
-          // texto literal, não fórmula
-          ws[cellAddress] = {
-            t: "s",
-            v: thumbUrl,
-          };
-        } else {
-          ws[cellAddress] = { t: "s", v: "" };
-        }
+        // Definimos como texto simples (t: "s") e valor direto (v)
+        ws[cellAddress] = {
+          t: "s",
+          v: thumbUrl,
+        };
       }
   
+      // Ajuste das larguras das colunas (Adicionada largura para a nova coluna)
       ws["!cols"] = [
-        { wch: 35 },
-        { wch: 10 },
-        { wch: 24 },
-        { wch: 45 },
-        { wch: 38 },
-        { wch: 12 },
-        { wch: 60 },
+        { wch: 15 }, // Order Name
+        { wch: 35 }, // Name of item
+        { wch: 10 }, // Qty
+        { wch: 24 }, // Customer
+        { wch: 45 }, // Address
+        { wch: 38 }, // Variants
+        { wch: 12 }, // Version
+        { wch: 60 }, // thumbnailUrl
       ];
   
       const wb = XLSX.utils.book_new();
@@ -901,7 +910,7 @@ cursorY = currentAddressY + 1;
   
       toast({
         title: "XLSX exported",
-        description: `Exported ${rows.length} line(s) from the current list.`,
+        description: `Exported ${rows.length} line(s) with Order Names.`,
       });
     } catch (err) {
       console.error("XLSX export error:", err);
