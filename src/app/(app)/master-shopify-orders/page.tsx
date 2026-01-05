@@ -862,7 +862,7 @@ cursorY = currentAddressY + 1;
           // texto literal, não fórmula
           ws[cellAddress] = {
             t: "s",
-            v: `=IMAGE("${escapeForFormula(thumbUrl)}";4;100;100)`,
+            v: thumbUrl,
           };
         } else {
           ws[cellAddress] = { t: "s", v: "" };
