@@ -451,6 +451,46 @@ export default function MasterShopifyOrdersPage() {
 
   const filteredOrders = filterOrdersByDate(activeFilter === 'ALL' ? orders : orders.filter(o => o.countryCode === activeFilter));
 
+  const handleWebhookExport = async () => {
+    setIsExporting(true);
+    try {
+      await fetch("https://webhook-mistertuga.pulsifyai.com/webhook/app_mistertuga_export", {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user: user?.email,
+          tab: orderTab,
+          filter: activeFilter,
+          orderCount: listToShow.length,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+  
+      // Removi o 'variant: "destructive"' para ele não ser vermelho.
+      // Para ser VERDE, certifique-se de que seu componente Toast no arquivo components/ui/toast.tsx 
+      // tenha suporte ou use o estilo padrão de sucesso se disponível.
+      toast({
+        title: "Export Signal Sent",
+        description: "The request was sent to the automation service.",
+        // Se o seu projeto tiver a variante success configurada:
+        className: "bg-green-500/20 border-green-500/50 text-white backdrop-blur-md",
+      });
+  
+    } catch (error) {
+      console.error("Webhook error:", error);
+      toast({
+        variant: "destructive", // Este continua vermelho para erros
+        title: "Connection Error",
+        description: "Could not reach the export server.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleExportPackingSheetPDF = async () => {
     setIsExporting(true);
   
@@ -1516,35 +1556,21 @@ cursorY = currentAddressY + 1;
 
     <div className="flex items-center gap-2">
         {/* BOTÃO DE EXPORT (Dropdown) */}
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-8 w-8 rounded-full border-white/10 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
-                >
-                    <Download className="h-4 w-4" />
-                    <span className="sr-only">Export</span>
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-auto bg-black/80 backdrop-blur-md border-white/10">
-              <DropdownMenuItem 
-                onClick={handleExportPackingSheetPDF} 
-                className="text-sm font-medium focus:bg-purple-500/20 cursor-pointer"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Export Current List (PDF)
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
-                onClick={handleExportCurrentListXLSX}
-                className="text-sm font-medium focus:bg-purple-500/20 cursor-pointer"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Export Current List (XLSX)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        {/* BOTÃO DE EXPORT (Ação Direta via Webhook) */}
+          <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleWebhookExport}
+              disabled={isExporting}
+              className="h-8 w-8 rounded-full border-white/10 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30 disabled:opacity-50"
+          >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              <span className="sr-only">Export to Webhook</span>
+          </Button>
 
         {/* Popover do Calendário (Filtro de Data) */}
         <Popover open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
