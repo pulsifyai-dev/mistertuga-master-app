@@ -40,3 +40,15 @@ next-env.d.ts
 # 💡 CORREÇÃO: DIRETÓRIOS GERADOS PELO FIREBASE FRAMEWORKS E CLI
 .firebase/
 .firebase-frameworks/
+
+# Product materials with sensitive data (n8n workflows contain API keys)
+docs/product/*.json
+docs/product/*.xlsx
+
+# AIOS Framework (symlinks to global hub)
+.aios-core
+squads
+.claude/rules
+outputs/
+.claude/settings.local.json
+.aios/install-log.txt
