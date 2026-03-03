@@ -34,6 +34,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger on auth.users to inject role into JWT on token refresh
+DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
 CREATE TRIGGER on_auth_user_updated
   BEFORE UPDATE ON auth.users
   FOR EACH ROW

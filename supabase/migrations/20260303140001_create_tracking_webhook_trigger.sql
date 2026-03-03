@@ -36,6 +36,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger: fires after UPDATE on orders table
+DROP TRIGGER IF EXISTS trg_tracking_webhook ON public.orders;
 CREATE TRIGGER trg_tracking_webhook
   AFTER UPDATE ON public.orders
   FOR EACH ROW EXECUTE FUNCTION notify_tracking_added();

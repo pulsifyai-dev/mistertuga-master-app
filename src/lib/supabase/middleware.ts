@@ -35,12 +35,13 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Redirect unauthenticated users to login (except login page itself)
+  // Redirect unauthenticated users to login (except public paths)
   if (
     !user &&
     !pathname.startsWith('/login') &&
     !pathname.startsWith('/auth') &&
-    !pathname.startsWith('/reset-password')
+    !pathname.startsWith('/reset-password') &&
+    !pathname.startsWith('/api/webhooks')
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
