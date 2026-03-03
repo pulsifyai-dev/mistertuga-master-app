@@ -31,6 +31,8 @@ interface ExpenseItem {
   label: string;
   base: number;
   extra: number;
+  color?: string;
+  recurring?: boolean;
 }
 
 // 👉 Novo tipo para cada ponto diário
@@ -44,7 +46,7 @@ interface ProfitStatsDoc {
   currency: 'EUR';
   totalRevenue: number;
   expenses: Record<ExpenseKey, ExpenseItem>;
-  dailyNetProfit: DailyNetProfitPoint[]; // 👈 novo campo
+  dailyNetProfit?: DailyNetProfitPoint[];
 }
 
 // ----- Dummy inicial (grava se não existir) -----
@@ -153,7 +155,7 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
   if (!Array.isArray(points) || points.length === 0) {
     return (
       <div className="flex h-24 items-center justify-center text-[11px] text-muted-foreground">
-        No avaiable daily Net Profit data.
+        No available daily Net Profit data.
       </div>
     );
   }

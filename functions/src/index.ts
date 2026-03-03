@@ -54,7 +54,7 @@ async function getTrackingWebhookUrl(): Promise<string | null> {
 export const sendTrackingWebhookOnOrderUpdate = onDocumentUpdated(
   {
     document: "orders/{countryCode}/orders/{orderId}",
-    region: "us-central1",
+    region: "europe-west1",
     timeoutSeconds: 15,
     memory: "256MiB",
   },
