@@ -1,18 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, UserPlus, Shield, Truck } from 'lucide-react';
+import { Loader2, Lock, UserPlus, Shield, Truck, Plus, Pencil, Trash2, Eye, Mail } from 'lucide-react';
 import { validateWebhookUrl } from '@/lib/validate-webhook-url';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createUser, listUsers } from './actions';
+import { listEmailTemplates, createEmailTemplate, updateEmailTemplate, deleteEmailTemplate } from './email-actions';
+import { TEMPLATE_PLACEHOLDERS, renderTemplate } from '@/app/(app)/exchanges/types';
+import type { EmailTemplate } from '@/app/(app)/exchanges/types';
 
 export default function SettingsPage() {
   const { user, isAdmin, loading: isLoading } = useAuth();
@@ -36,11 +40,76 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<{ id: string; email: string; name: string; role: string; assigned_countries: string[]; created_at: string }[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
+  // Email templates state
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateSubject, setTemplateSubject] = useState('');
+  const [templateBody, setTemplateBody] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
+
   const fetchUsers = async () => {
     setLoadingUsers(true);
     const result = await listUsers();
     if (result.success) setUsers(result.users);
     setLoadingUsers(false);
+  };
+
+  const fetchTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    const result = await listEmailTemplates();
+    if (result.success) setEmailTemplates(result.templates as EmailTemplate[]);
+    setLoadingTemplates(false);
+  }, []);
+
+  const openNewTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateName('');
+    setTemplateSubject('');
+    setTemplateBody('');
+    setIsTemplateDialogOpen(true);
+  };
+
+  const openEditTemplate = (t: EmailTemplate) => {
+    setEditingTemplate(t);
+    setTemplateName(t.name);
+    setTemplateSubject(t.subject_template);
+    setTemplateBody(t.body_template);
+    setIsTemplateDialogOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName || !templateSubject || !templateBody) {
+      toast({ variant: 'destructive', title: 'Error', description: 'All fields are required.' });
+      return;
+    }
+    setSavingTemplate(true);
+    const payload = { name: templateName, subject_template: templateSubject, body_template: templateBody };
+    const result = editingTemplate
+      ? await updateEmailTemplate(editingTemplate.id, payload)
+      : await createEmailTemplate(payload);
+
+    if (result.success) {
+      toast({ title: editingTemplate ? 'Template Updated' : 'Template Created' });
+      setIsTemplateDialogOpen(false);
+      fetchTemplates();
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setSavingTemplate(false);
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    const result = await deleteEmailTemplate(id);
+    if (result.success) {
+      toast({ title: 'Template Deleted' });
+      fetchTemplates();
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
   };
 
   const handleAddUser = async () => {
@@ -109,7 +178,8 @@ export default function SettingsPage() {
 
     fetchWebhookUrl();
     fetchUsers();
-  }, [isAdmin]);
+    fetchTemplates();
+  }, [isAdmin, fetchTemplates]);
 
   const handleSaveWebhook = async () => {
     if (!isAdmin) return;
@@ -401,6 +471,104 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+      {/* Email Templates — ADMIN only */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" /> Email Templates
+              </CardTitle>
+              <CardDescription>Manage templates for exchange communications.</CardDescription>
+            </div>
+            <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" onClick={openNewTemplate}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Template
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{editingTemplate ? 'Edit Template' : 'New Email Template'}</DialogTitle>
+                  <DialogDescription>
+                    Use {'{{placeholders}}'} for dynamic content.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="tmpl-name">Name</Label>
+                    <Input id="tmpl-name" placeholder="e.g. Exchange Confirmation" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tmpl-subject">Subject</Label>
+                    <Input id="tmpl-subject" placeholder="Re: Exchange for order {{order_number}}" value={templateSubject} onChange={(e) => setTemplateSubject(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tmpl-body">Body</Label>
+                    <Textarea id="tmpl-body" placeholder="Dear {{customer_name}},&#10;&#10;Your exchange request..." className="min-h-[150px]" value={templateBody} onChange={(e) => setTemplateBody(e.target.value)} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Placeholders: {TEMPLATE_PLACEHOLDERS.join(', ')}
+                  </p>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="secondary">Cancel</Button>
+                  </DialogClose>
+                  <Button onClick={handleSaveTemplate} disabled={savingTemplate} className="bg-purple-600 text-white hover:bg-purple-500">
+                    {savingTemplate && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingTemplate ? 'Update' : 'Create'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            {loadingTemplates ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : emailTemplates.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No email templates yet. Create one to start sending emails from the Exchanges page.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {emailTemplates.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between rounded-lg border border-white/10 px-4 py-3">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium">{t.name}</span>
+                      <span className="text-xs text-muted-foreground truncate">{t.subject_template}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPreviewTemplate(previewTemplate?.id === t.id ? null : t)} aria-label="Preview template">
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditTemplate(t)} aria-label="Edit template">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={() => handleDeleteTemplate(t.id)} aria-label="Delete template">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {/* Preview panel */}
+                {previewTemplate && (
+                  <div className="rounded-lg border border-purple-500/30 bg-black/30 p-4 space-y-2 mt-3">
+                    <h4 className="text-sm font-medium text-purple-400">Preview: {previewTemplate.name}</h4>
+                    <p className="text-xs"><span className="text-muted-foreground">Subject:</span> {renderTemplate(previewTemplate.subject_template, { customer_name: 'John Doe', customer_email: 'john@example.com', order_number: 'PT#12345', reason: 'Wrong size', status: 'approved' })}</p>
+                    <div className="rounded-md bg-black/40 p-3 text-xs whitespace-pre-wrap">
+                      {renderTemplate(previewTemplate.body_template, { customer_name: 'John Doe', customer_email: 'john@example.com', order_number: 'PT#12345', reason: 'Wrong size', status: 'approved' })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

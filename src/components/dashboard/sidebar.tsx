@@ -14,6 +14,7 @@ import {
 import {
   BarChart3,
   ShoppingBag,
+  RefreshCw,
   AlertCircle,
   Settings,
   LogOut,
@@ -33,6 +34,12 @@ const ALL_SIDEBAR_ITEMS = [
     href: "/master-shopify-orders",
     icon: ShoppingBag,
     requiresAdmin: false,
+  },
+  {
+    label: "Exchanges",
+    href: "/exchanges",
+    icon: RefreshCw,
+    requiresAdmin: true,
   },
   {
     label: "Mistake Handling",
