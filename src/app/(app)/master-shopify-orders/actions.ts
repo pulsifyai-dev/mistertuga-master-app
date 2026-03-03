@@ -1,8 +1,8 @@
 'use server';
 
 import { z } from 'zod';
-import { adminDb } from '@/lib/firebase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
+import { createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 const updateOrderSchema = z.object({
@@ -25,56 +25,87 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
   const { orderId, countryCode, customerName, customerAddress, customerPhone, trackingNumber, note } = validation.data;
 
   try {
-    // Verify authentication and admin role via Supabase
     await requireAdmin();
 
-    const orderRef = adminDb.collection('orders').doc(countryCode).collection('orders').doc(orderId);
+    const supabase = createServiceClient();
 
-    // 1. Read current data
-    const doc = await orderRef.get();
-    if (!doc.exists) {
-        return { success: false, error: 'Order not found.' };
+    // 1. Find the order by order_number + country_code
+    const { data: order, error: findError } = await supabase
+      .from('orders')
+      .select('id, status, customer_id, tracking_number')
+      .eq('order_number', orderId)
+      .eq('country_code', countryCode)
+      .is('deleted_at', null)
+      .single();
+
+    if (findError || !order) {
+      return { success: false, error: 'Order not found.' };
     }
-    const currentData = doc.data();
 
-    // 2. Prepare update payload
-    const updatePayload: { [key: string]: any } = {
-      'customer.name': customerName,
-      'customer.address': customerAddress,
-      'customer.phone': customerPhone.replace(/\s/g, ''),
+    // 2. Update the order
+    const orderUpdate: Record<string, unknown> = {
       note: note || '',
+      updated_at: new Date().toISOString(),
     };
 
     if (trackingNumber) {
-      updatePayload.trackingNumber = trackingNumber;
-      if (currentData?.status === 'Pending Production') {
-        updatePayload.status = 'Shipped';
+      orderUpdate.tracking_number = trackingNumber;
+      if (order.status === 'open') {
+        orderUpdate.status = 'fulfilled';
+        orderUpdate.fulfillment_status = 'fulfilled';
       }
     }
 
-    // 3. Update in database
-    await orderRef.update(updatePayload);
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update(orderUpdate)
+      .eq('id', order.id);
+
+    if (updateError) {
+      console.error('Error updating order:', updateError);
+      return { success: false, error: 'Failed to update order.' };
+    }
+
+    // 3. Update the customer record
+    if (order.customer_id) {
+      const { error: customerError } = await supabase
+        .from('customers')
+        .update({
+          name: customerName,
+          phone: customerPhone.replace(/\s/g, ''),
+          address_line1: customerAddress,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.customer_id);
+
+      if (customerError) {
+        console.error('Error updating customer:', customerError);
+      }
+    }
 
     // 4. Send webhook
     try {
-      const settingsDoc = await adminDb.collection('settings').doc('tracking').get();
-      const webhookUrl = settingsDoc.data()?.url;
+      const { data: setting } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'webhook_url')
+        .single();
 
-      if (webhookUrl) {
+      const webhookUrl = setting?.value?.url || setting?.value;
+
+      if (webhookUrl && typeof webhookUrl === 'string') {
         const webhookPayload = {
-            ...currentData,
-            customer: {
-                ...currentData?.customer,
-                name: customerName,
-                address: customerAddress,
-                phone: customerPhone.replace(/\s/g, ''),
-            },
-            note: note || '',
-            trackingNumber: trackingNumber || currentData?.trackingNumber,
-            status: updatePayload.status || currentData?.status,
-            orderId: orderId,
-            countryCode: countryCode,
-            updatedAt: new Date().toISOString()
+          customer: {
+            name: customerName,
+            address: customerAddress,
+            phone: customerPhone.replace(/\s/g, ''),
+          },
+          note: note || '',
+          trackingNumber: trackingNumber || order.tracking_number,
+          status: orderUpdate.status || order.status,
+          orderId,
+          countryCode,
+          updatedAt: new Date().toISOString(),
         };
 
         console.log(`Sending webhook to ${webhookUrl}`);
@@ -87,25 +118,56 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
         if (!webhookResponse.ok) {
           console.error(`Webhook failed with status: ${webhookResponse.status}`);
         } else {
-            console.log("Webhook sent successfully");
+          console.log('Webhook sent successfully');
         }
       } else {
-          console.warn("No webhook URL found in settings/tracking");
+        console.warn('No webhook URL found in settings');
       }
     } catch (webhookError) {
-      console.error("Error sending webhook:", webhookError);
+      console.error('Error sending webhook:', webhookError);
     }
 
     revalidatePath('/master-shopify-orders');
     return { success: true };
 
   } catch (error: any) {
-    console.error("Error updating order details:", error);
+    console.error('Error updating order details:', error);
 
     if (error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
       return { success: false, error: error.message };
     }
 
     return { success: false, error: error.message || 'An unexpected server error occurred.' };
+  }
+}
+
+export async function resetTrackingNumber(orderId: string, countryCode: string) {
+  try {
+    await requireAdmin();
+
+    const supabase = createServiceClient();
+
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        tracking_number: '',
+        status: 'open',
+        fulfillment_status: 'unfulfilled',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('order_number', orderId)
+      .eq('country_code', countryCode)
+      .is('deleted_at', null);
+
+    if (error) {
+      console.error('Error resetting tracking:', error);
+      return { success: false, error: 'Failed to reset tracking.' };
+    }
+
+    revalidatePath('/master-shopify-orders');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error resetting tracking:', error);
+    return { success: false, error: error.message || 'An unexpected error occurred.' };
   }
 }

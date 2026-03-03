@@ -1,4 +1,3 @@
-import { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 
 // --- Domain Types ---
@@ -28,13 +27,7 @@ export type Order = {
   trackingNumber: string;
   items: Product[];
   note?: string;
-};
-
-export type FirestoreOrder = Omit<Order, 'date' | 'items' | 'customer'> & {
-  date: Timestamp | string;
-  items?: Product[];
-  note?: string;
-  customer: Omit<Customer, 'phone'> & { phone: string | number };
+  supabaseId?: string;
 };
 
 export type ExportType = 'pending' | 'shipped' | 'all';

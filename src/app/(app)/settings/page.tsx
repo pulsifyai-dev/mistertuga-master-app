@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { useFirebase } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +12,6 @@ import { Loader2, Lock } from 'lucide-react';
 
 export default function SettingsPage() {
   const { user, isAdmin, loading: isLoading } = useAuth();
-  const { firestore } = useFirebase();
   const { toast } = useToast();
   const [webhookUrl, setWebhookUrl] = useState('');
   const [name, setName] = useState('');
@@ -31,27 +28,41 @@ export default function SettingsPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!firestore || !isAdmin) return;
+    if (!isAdmin) return;
 
     const fetchWebhookUrl = async () => {
       setLoadingWebhook(true);
-      const settingsRef = doc(firestore, "settings", "tracking");
-      const docSnap = await getDoc(settingsRef);
-      if (docSnap.exists()) {
-        setWebhookUrl(docSnap.data().url || '');
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'webhook_url')
+        .single();
+
+      if (data?.value) {
+        const url = typeof data.value === 'string' ? data.value : data.value.url || '';
+        setWebhookUrl(url);
       }
       setLoadingWebhook(false);
     };
 
     fetchWebhookUrl();
-  }, [firestore, isAdmin]);
+  }, [isAdmin]);
 
   const handleSaveWebhook = async () => {
-    if (!firestore || !isAdmin) return;
+    if (!isAdmin) return;
     setSavingWebhook(true);
     try {
-      const settingsRef = doc(firestore, "settings", "tracking");
-      await setDoc(settingsRef, { url: webhookUrl });
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('settings')
+        .upsert(
+          { key: 'webhook_url', value: { url: webhookUrl }, updated_at: new Date().toISOString() },
+          { onConflict: 'key' }
+        );
+
+      if (error) throw error;
+
       toast({
         title: "Success",
         description: "Webhook URL saved successfully.",

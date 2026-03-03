@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2, ChevronUp } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { updateOrderDetails } from './actions';
+import { updateOrderDetails, resetTrackingNumber } from './actions';
 import type { Order, EditOrderSchema, CountryCode } from './types';
 
 // Hooks
@@ -25,7 +24,7 @@ export default function MasterShopifyOrdersPage() {
   const { toast } = useToast();
 
   // Data hooks
-  const { orders, pageLoading, isUserLoading, user, firestore } = useOrders();
+  const { orders, pageLoading, isUserLoading, user } = useOrders();
   const filters = useOrderFilters(orders);
   const { isExporting, exportChunksInfo, handleExportPackingSheetPDF } = usePdfExport();
   const { handleExportCurrentListXLSX } = useExcelExport();
@@ -57,7 +56,7 @@ export default function MasterShopifyOrdersPage() {
   };
 
   const handleSubmitTracking = async (order: Order) => {
-    if (!user || !firestore) return;
+    if (!user) return;
     const trackingNumber = trackingNumbers[order.id];
     if (!trackingNumber) {
       toast({ variant: 'destructive', title: 'Missing Tracking Number' });
@@ -91,10 +90,18 @@ export default function MasterShopifyOrdersPage() {
   };
 
   const handleResetTracking = async (order: Order) => {
-    if (!user || !firestore) return;
-    const orderRef = doc(firestore, 'orders', order.countryCode, 'orders', order.id);
-    await updateDoc(orderRef, { trackingNumber: '', status: 'Pending Production' });
-    toast({ title: 'Tracking Reset' });
+    if (!user) return;
+    try {
+      const result = await resetTrackingNumber(order.id, order.countryCode);
+      if (result.success) {
+        toast({ title: 'Tracking Reset' });
+      } else {
+        toast({ variant: 'destructive', title: 'Reset Failed' });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Unexpected error' });
+    }
   };
 
   const handleEditOrder = (order: Order) => {
