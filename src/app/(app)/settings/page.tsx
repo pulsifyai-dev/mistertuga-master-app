@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Lock } from 'lucide-react';
+import { validateWebhookUrl } from '@/lib/validate-webhook-url';
 
 export default function SettingsPage() {
   const { user, isAdmin, loading: isLoading } = useAuth();
@@ -51,6 +52,20 @@ export default function SettingsPage() {
 
   const handleSaveWebhook = async () => {
     if (!isAdmin) return;
+
+    // Allow saving empty URL (to clear the webhook)
+    if (webhookUrl.trim()) {
+      const validation = validateWebhookUrl(webhookUrl);
+      if (!validation.valid) {
+        toast({
+          variant: 'destructive',
+          title: 'Invalid Webhook URL',
+          description: validation.error,
+        });
+        return;
+      }
+    }
+
     setSavingWebhook(true);
     try {
       const supabase = createClient();

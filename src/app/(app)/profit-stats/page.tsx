@@ -35,23 +35,23 @@ interface ExpenseItem {
   recurring?: boolean;
 }
 
-// 👉 Novo tipo para cada ponto diário
+// Daily data point type
 interface DailyNetProfitPoint {
   date: string; // "2025-12-01"
   net: number;  // lucro líquido nesse dia
 }
 
 interface ProfitStatsDoc {
-  periodLabel: string; // Ex: "Últimos 30 dias"
+  periodLabel: string;
   currency: 'EUR';
   totalRevenue: number;
   expenses: Record<ExpenseKey, ExpenseItem>;
   dailyNetProfit?: DailyNetProfitPoint[];
 }
 
-// ----- Dummy inicial (grava se não existir) -----
+// ----- Dummy initial data (created if not exists) -----
 const dummyProfitDoc: ProfitStatsDoc = {
-  periodLabel: 'Last 30 dias',
+  periodLabel: 'Last 30 days',
   currency: 'EUR',
   totalRevenue: 48237.5,
   expenses: {
@@ -97,7 +97,6 @@ function buildDummyDailyNetProfit(
   totalRevenue: number,
   expenses: Record<ExpenseKey, ExpenseItem>
 ): DailyNetProfitPoint[] {
-  // Total de despesas (base + extra)
   const totalExpenses = (Object.keys(expenses) as ExpenseKey[]).reduce(
     (acc, key) => acc + expenses[key].base + expenses[key].extra,
     0
@@ -107,7 +106,7 @@ function buildDummyDailyNetProfit(
 
   const today = new Date();
   const year = today.getFullYear();
-  const month = today.getMonth(); // 0-11 (mês atual)
+  const month = today.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   if (daysInMonth <= 0) return [];
@@ -118,8 +117,7 @@ function buildDummyDailyNetProfit(
 
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day);
-    // Pequena variação para não ficar linha “flat”
-    const jitter = basePerDay * 0.35 * (Math.random() - 0.5) * 2; // +/- 35%
+    const jitter = basePerDay * 0.35 * (Math.random() - 0.5) * 2;
     const value = Math.round((basePerDay + jitter) * 100) / 100;
 
     points.push({
@@ -132,11 +130,11 @@ function buildDummyDailyNetProfit(
 }
 
 const expenseAccentColors: Record<ExpenseKey, string> = {
-  metaAds: "#a855f7",        // roxo
-  tiktokAds: "#ec4899",      // rosa
-  klaviyo: "#22c55e",        // verde
-  collaborators: "#38bdf8",  // azul
-  variableCosts: "#f59e0b",  // laranja
+  metaAds: "#a855f7",
+  tiktokAds: "#ec4899",
+  klaviyo: "#22c55e",
+  collaborators: "#38bdf8",
+  variableCosts: "#f59e0b",
 };
 
 function formatCurrency(value: number, currency: string = 'EUR') {
@@ -148,9 +146,7 @@ function formatCurrency(value: number, currency: string = 'EUR') {
   });
 }
 
-/**
- * Gráfico de linha suave, minimal, ao estilo do dashboard do Shopify.
- */
+/** Minimal smooth line chart, Shopify dashboard style. */
 function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
   if (!Array.isArray(points) || points.length === 0) {
     return (
@@ -160,7 +156,7 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
     );
   }
 
-  // ordenar por data e preparar dados para o gráfico
+  // Sort by date and prepare chart data
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
   const chartData = sorted.map((p) => {
     const d = new Date(p.date);
@@ -179,13 +175,13 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
           margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
         >
           <defs>
-            {/* gradiente da linha – só roxo */}
+            {/* Line gradient */}
             <linearGradient id="netProfitStroke" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#a855f7" />
               <stop offset="100%" stopColor="#a855f7" />
             </linearGradient>
 
-            {/* gradiente do preenchimento – roxo que desvanece */}
+            {/* Fill gradient */}
             <linearGradient id="netProfitFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="rgba(168,85,247,0.35)" />
               <stop offset="100%" stopColor="rgba(168,85,247,0)" />
@@ -236,7 +232,7 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
   );
 }
 
-// cores para barra vertical de cada despesa (tipo cor do país nas orders)
+// Vertical bar colors for each expense card
 const EXPENSE_COLORS: Record<ExpenseKey, string> = {
   metaAds: '#38bdf8',
   tiktokAds: '#f97316',
@@ -256,7 +252,7 @@ export default function ProfitStatsPage() {
   const [tempExtra, setTempExtra] = useState('');
   const [savingExtra, setSavingExtra] = useState(false);
 
-  // --------- Load Firestore ----------
+  // --------- Load data ----------
   useEffect(() => {
     if (!firestore) {
       setLoading(false);
@@ -271,7 +267,7 @@ export default function ProfitStatsPage() {
         const snap = await getDoc(ref);
   
         if (!snap.exists()) {
-          // 👉 1) documento não existe → cria com dummy + dailyNetProfit
+          // Document doesn't exist — create with dummy + dailyNetProfit
           const dailyNet = buildDummyDailyNetProfit(
             dummyProfitDoc.totalRevenue,
             dummyProfitDoc.expenses
@@ -287,7 +283,7 @@ export default function ProfitStatsPage() {
             setData(docToSave);
           }
         } else {
-          // 👉 2) documento existe → garantir que tem dailyNetProfit
+          // Document exists — ensure it has dailyNetProfit
           const raw = snap.data() as any;
   
           if (!raw.dailyNetProfit || !Array.isArray(raw.dailyNetProfit)) {
@@ -305,7 +301,7 @@ export default function ProfitStatsPage() {
           }
         }
       } catch (error) {
-        console.error('Erro a carregar profit-stats:', error);
+        console.error('Error loading profit-stats:', error);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -331,7 +327,7 @@ export default function ProfitStatsPage() {
           <div className="h-32 w-full animate-pulse rounded-md bg-muted" />
         </div>
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="rounded-2xl border border-white/15 bg-black/5 p-4 flex items-center gap-3" style={{ borderLeftWidth: 3 }}>
+          <div key={i} className="rounded-2xl border border-white/15 bg-black/5 p-4 flex items-center gap-3 border-l-[3px]">
             <div className="flex flex-col gap-2 flex-1">
               <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
               <div className="h-3 w-20 animate-pulse rounded-md bg-muted" />
@@ -350,14 +346,14 @@ export default function ProfitStatsPage() {
     : [];
 
   const { currency, periodLabel, totalRevenue, expenses } = data;
-  // Garantir que o array existe e vem ordenado por data
+  // Ensure the array exists and is sorted by date
   const safeDailyNet = Array.isArray(dailyNetProfit) ? dailyNetProfit : [];
 
   const sortedDailyNet = [...safeDailyNet].sort((a, b) =>
     a.date.localeCompare(b.date)
   );
 
-  // Formato final para o Recharts
+  // Final format for Recharts
   const chartData =
   sortedDailyNet.length === 0
     ? Array.from({ length: 10 }, (_, i) => ({
@@ -382,7 +378,7 @@ export default function ProfitStatsPage() {
   const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
   const trendPositive = netProfit >= 0;
 
-  // --------- Extras ----------
+  // --------- Extra expenses ----------
   const handleStartEditExtra = (key: ExpenseKey) => {
     setEditingKey(key);
     setTempExtra('');
@@ -402,8 +398,8 @@ export default function ProfitStatsPage() {
     if (isNaN(parsed)) {
       toast({
         variant: 'destructive',
-        title: 'Valor inválido',
-        description: 'Insere um valor numérico válido.',
+        title: 'Invalid value',
+        description: 'Please enter a valid numeric value.',
       });
       return;
     }
@@ -434,19 +430,19 @@ export default function ProfitStatsPage() {
       });
 
       toast({
-        title: 'Extra aplicado',
-        description: 'Despesa atualizada com sucesso.',
+        title: 'Extra applied',
+        description: 'Expense updated successfully.',
       });
 
       setEditingKey(null);
       setTempExtra('');
     } catch (error: any) {
-      console.error('Erro a guardar extra:', error);
+      console.error('Error saving extra:', error);
       toast({
         variant: 'destructive',
-        title: 'Erro ao guardar',
+        title: 'Error saving',
         description:
-          error?.message || 'Não foi possível guardar o ajuste de despesa.',
+          error?.message || 'Could not save the expense adjustment.',
       });
     } finally {
       setSavingExtra(false);
@@ -455,7 +451,7 @@ export default function ProfitStatsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-            {/* HEADER (minimal, igual vibe ao Shopify Orders) */}
+            {/* HEADER */}
             <div className="pt-1">
         <div className="flex items-center gap-3">
           <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
@@ -475,7 +471,7 @@ export default function ProfitStatsPage() {
         </p>
       </div>
 
-      {/* CARD PRINCIPAL NET PROFIT + GRÁFICO */}
+      {/* NET PROFIT CARD + CHART */}
       <Card
           aria-label={`Net profit: ${formatCurrency(netProfit, currency)}. Revenue: ${formatCurrency(totalRevenue, currency)}, Expenses: ${formatCurrency(totalExpenses, currency)}, Margin: ${netMargin.toFixed(1)}%`}
           className="relative overflow-hidden rounded-2xl border border-white/8 bg-black/40
@@ -524,7 +520,7 @@ export default function ProfitStatsPage() {
         </CardContent>
       </Card>
 
-      {/* DESPESAS – CADA UMA NUM CARD COMO AS ORDERS */}
+      {/* EXPENSE CARDS */}
       <div className="flex flex-col gap-3">
         {(Object.keys(expenses) as ExpenseKey[]).map((key) => {
           const item = expenses[key];
@@ -535,15 +531,12 @@ export default function ProfitStatsPage() {
           return (
             <Card
             key={key}
-            className="rounded-2xl border bg-black/5 border-white/15
+            className="rounded-2xl border border-l-[3px] bg-black/5 border-white/15
                        backdrop-blur-md shadow-[0_18px_30px_rgba(0,0,0,0.25)]"
-            style={{
-              borderLeftWidth: 3,
-              borderLeftColor: expenseAccentColors[key],
-            }}
+            style={{ borderLeftColor: expenseAccentColors[key] }}
           >
             <CardContent className="flex w-full items-center gap-3 p-3.5">
-              {/* Info da despesa (esquerda) */}
+              {/* Expense info */}
               <div className="flex flex-col">
                 <span className="text-sm font-medium">{item.label}</span>
                 <span className="text-xs text-muted-foreground">
@@ -551,7 +544,7 @@ export default function ProfitStatsPage() {
                 </span>
               </div>
     
-              {/* Zona direita: botão / input – sempre encostado à direita */}
+              {/* Action buttons — right-aligned */}
               {isEditing ? (
                 <div className="ml-auto flex items-center gap-1">
                   <Input
@@ -566,7 +559,7 @@ export default function ProfitStatsPage() {
                         return;
                       }
     
-                      // apenas dígitos e um separador decimal
+                      // Only digits and one decimal separator
                       const normalized = raw.replace(/,/g, '.');
                       const isValid = /^\d*\.?\d*$/.test(normalized);
     

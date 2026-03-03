@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 function OrderRowSkeleton() {
   return (
-    <Card className="relative overflow-hidden rounded-xl shadow-md" style={{ borderLeft: '4px solid #888' }}>
+    <Card className="relative overflow-hidden rounded-xl shadow-md border-l-4 border-l-[#888]">
       <CardHeader className="flex flex-row items-center justify-between p-4 bg-muted/20">
         <div className="flex items-center gap-3">
           <Skeleton className="h-5 w-5 rounded-full" />

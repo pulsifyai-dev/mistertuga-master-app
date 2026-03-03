@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import jsPDF from 'jspdf';
 import { useToast } from '@/hooks/use-toast';
 import type { Order } from '../types';
 import { MAX_ORDERS_PER_PDF } from '../types';
@@ -74,6 +73,7 @@ export function usePdfExport() {
         const partNumber = batchIndex + 1;
         const totalParts = chunks.length;
 
+        const { default: jsPDF } = await import('jspdf');
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
@@ -289,8 +289,8 @@ export function usePdfExport() {
         pdf.save(`${baseName}_${todayStr}${suffix}.pdf`);
       }
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      toast({ variant: 'destructive', title: 'Erro ao gerar o PDF', description: 'Tenta novamente em alguns segundos.' });
+      console.error('Error generating PDF:', error);
+      toast({ variant: 'destructive', title: 'Error generating PDF', description: 'Please try again in a few seconds.' });
     } finally {
       setIsExporting(false);
       setExportChunksInfo(null);

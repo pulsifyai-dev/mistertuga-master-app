@@ -44,7 +44,6 @@ const ALL_SIDEBAR_ITEMS = [
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
-  // Obtemos setOpen para controlar o estado da sidebar
   const { isMobile, setOpen } = useSidebar();
   const { signOut, isAdmin, user, role } = useAuth(); 
 
@@ -60,14 +59,14 @@ export default function DashboardSidebar() {
   const logoutButtonClasses =
     "text-red-400 hover:bg-red-500/10 hover:text-red-400";
 
-  // 💡 CORREÇÃO 1: Fecha a sidebar ao navegar, na versão mobile.
+  // Close sidebar on navigation in mobile view
   const handleNavClick = () => {
     if (isMobile) {
       setOpen(false);
     }  
   };
 
-  // 💡 CORREÇÃO 2: Fecha a sidebar após o logout.
+  // Close sidebar after logout
   const handleLogout = () => {
     signOut();
     setOpen(false);
@@ -148,7 +147,7 @@ export default function DashboardSidebar() {
               className={baseButtonClasses + " " + logoutButtonClasses}
             >
               <LogOut className="h-4 w-4" />
-              <span>Sair / Logout</span>
+              <span>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

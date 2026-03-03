@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { rateLimit } from '@/lib/rate-limit';
+import { validateWebhookUrl } from '@/lib/validate-webhook-url';
 
 const updateOrderSchema = z.object({
   orderId: z.string().min(1),
@@ -25,7 +27,13 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
   const { orderId, countryCode, customerName, customerAddress, customerPhone, trackingNumber, note } = validation.data;
 
   try {
-    await requireAdmin();
+    const { user } = await requireAdmin();
+
+    // Rate limit: 10 updates per minute per user
+    const rl = rateLimit(`updateOrder:${user.id}`, 10, 60_000);
+    if (!rl.success) {
+      return { success: false, error: 'Too many requests. Please wait a moment before trying again.' };
+    }
 
     const supabase = createServiceClient();
 
@@ -94,6 +102,11 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
       const webhookUrl = setting?.value?.url || setting?.value;
 
       if (webhookUrl && typeof webhookUrl === 'string') {
+        // Validate webhook URL before sending (SSRF protection)
+        const urlValidation = validateWebhookUrl(webhookUrl);
+        if (!urlValidation.valid) {
+          console.warn(`Webhook URL blocked: ${urlValidation.error}`);
+        } else {
         const webhookPayload = {
           customer: {
             name: customerName,
@@ -120,6 +133,7 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
         } else {
           console.log('Webhook sent successfully');
         }
+        }
       } else {
         console.warn('No webhook URL found in settings');
       }
@@ -143,7 +157,13 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
 
 export async function resetTrackingNumber(orderId: string, countryCode: string) {
   try {
-    await requireAdmin();
+    const { user } = await requireAdmin();
+
+    // Rate limit: 10 resets per minute per user
+    const rl = rateLimit(`resetTracking:${user.id}`, 10, 60_000);
+    if (!rl.success) {
+      return { success: false, error: 'Too many requests. Please wait a moment before trying again.' };
+    }
 
     const supabase = createServiceClient();
 
