@@ -4,8 +4,8 @@
 **Epic ID:** EPIC-2
 **Author:** @pm (Morgan)
 **Date:** 2026-03-02
-**Status:** READY (blocked by EPIC-1 completion)
-**Blocked By:** EPIC-1 (Firebase → Supabase Quality Migration)
+**Status:** IN PROGRESS (7/8 stories Done)
+**Blocked By:** Story 2.8 deferred (P3/future)
 
 **Source PRD:** `docs/product/mistertuga_master.md`
 **Schema Blueprint:** `docs/architecture/schema-blueprint.md` (Phase 2 tables)
@@ -103,13 +103,13 @@ EPIC-1 (Complete)
 
 | Story | Title | Status | Sprint | Priority |
 |-------|-------|--------|--------|----------|
-| [2.1](../stories/2.1.story.md) | Exchanges/Returns: Schema + n8n Integration | Draft | 4 | P1 |
-| [2.2](../stories/2.2.story.md) | Exchanges/Returns: UI + Email Templates | Draft | 4 | P1 |
-| [2.3](../stories/2.3.story.md) | Supplier Cost Calculation Engine | Draft | 4 | P1 |
-| [2.4](../stories/2.4.story.md) | Supplier Excel Export with Embedded Images | Draft | 4 | P1 |
-| [2.5](../stories/2.5.story.md) | Google Ads + Meta Ads Integration | Draft | 5 | P2 |
-| [2.6](../stories/2.6.story.md) | Expense Catalog + Manual Expenses | Draft | 5 | P2 |
-| [2.7](../stories/2.7.story.md) | Daily Revenue Dashboard | Draft | 5 | P2 |
+| [2.1](../stories/2.1.story.md) | Exchanges/Returns: Schema + n8n Integration | Done | 4 | P1 |
+| [2.2](../stories/2.2.story.md) | Exchanges/Returns: UI + Email Templates | Done | 4 | P1 |
+| [2.3](../stories/2.3.story.md) | Supplier Cost Calculation Engine | Done | 4 | P1 |
+| [2.4](../stories/2.4.story.md) | Supplier Excel Export with Embedded Images | Done | 4 | P1 |
+| [2.5](../stories/2.5.story.md) | Google Ads + Meta Ads Integration | Done | 5 | P2 |
+| [2.6](../stories/2.6.story.md) | Expense Catalog + Manual Expenses | Done | 5 | P2 |
+| [2.7](../stories/2.7.story.md) | Daily Revenue Dashboard | Done | 5 | P2 |
 | [2.8](../stories/2.8.story.md) | Supplier Document Reconciliation | Draft | 5 | P3 |
 
 ---
