@@ -17,6 +17,7 @@ import {
   RefreshCw,
   AlertCircle,
   DollarSign,
+  Receipt,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -52,6 +53,12 @@ const ALL_SIDEBAR_ITEMS = [
     label: "Cost Rules",
     href: "/cost-rules",
     icon: DollarSign,
+    requiresAdmin: true,
+  },
+  {
+    label: "Expenses",
+    href: "/expenses",
+    icon: Receipt,
     requiresAdmin: true,
   },
 ];
