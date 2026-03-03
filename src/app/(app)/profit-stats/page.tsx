@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, Plus, Check, X as XIcon, AlertTriangle } from 'lucide-react';
-
+import { useEffect, useState, useCallback } from 'react';
+import { ArrowUpRight, ArrowDownRight, Loader2, RefreshCw, Globe } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -10,7 +9,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-} from "recharts";
+} from 'recharts';
 import {
   Card,
   CardHeader,
@@ -19,172 +18,85 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import {
+  getProfitSummary,
+  recalculateRevenue,
+  type ProfitSummary,
+} from './revenue-actions';
+import { formatCurrency } from '@/lib/format';
 
-type ExpenseKey = 'metaAds' | 'tiktokAds' | 'klaviyo' | 'collaborators' | 'variableCosts';
+// --- Helpers ---
 
-interface ExpenseItem {
-  label: string;
-  base: number;
-  extra: number;
-  color?: string;
-  recurring?: boolean;
-}
+function getDateRange(preset: string) {
+  const end = new Date();
+  const endStr = end.toISOString().split('T')[0];
+  let start: Date;
 
-// Daily data point type
-interface DailyNetProfitPoint {
-  date: string; // "2025-12-01"
-  net: number;  // lucro líquido nesse dia
-}
-
-interface ProfitStatsDoc {
-  periodLabel: string;
-  currency: 'EUR';
-  totalRevenue: number;
-  expenses: Record<ExpenseKey, ExpenseItem>;
-  dailyNetProfit?: DailyNetProfitPoint[];
-}
-
-// ----- Dummy initial data (created if not exists) -----
-const dummyProfitDoc: ProfitStatsDoc = {
-  periodLabel: 'Last 30 days',
-  currency: 'EUR',
-  totalRevenue: 48237.5,
-  expenses: {
-    metaAds: {
-      label: 'Meta Ads (Facebook / Instagram)',
-      base: 12500,
-      extra: 0,
-      color: '#a855f7',
-      recurring: true,
-    },
-    tiktokAds: {
-      label: 'TikTok Ads',
-      base: 4200,
-      extra: 0,
-      color: '#ec4899',
-      recurring: true,
-    },
-    klaviyo: {
-      label: 'Klaviyo (Email / SMS)',
-      base: 780,
-      extra: 0,
-      color: '#22c55e',
-      recurring: true,
-    },
-    collaborators: {
-      label: 'collaborators / Team',
-      base: 13500,
-      extra: 0,
-      color: '#38bdf8',
-      recurring: true,
-    },
-    variableCosts: {
-      label: 'Variable Costs (packaging, shipping, etc.)',
-      base: 8900,
-      extra: 0,
-      color: '#f97316',
-      recurring: true,
-    },
-  },
-};
-
-function buildDummyDailyNetProfit(
-  totalRevenue: number,
-  expenses: Record<ExpenseKey, ExpenseItem>
-): DailyNetProfitPoint[] {
-  const totalExpenses = (Object.keys(expenses) as ExpenseKey[]).reduce(
-    (acc, key) => acc + expenses[key].base + expenses[key].extra,
-    0
-  );
-
-  const totalNet = totalRevenue - totalExpenses;
-
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  if (daysInMonth <= 0) return [];
-
-  const basePerDay = totalNet / daysInMonth;
-
-  const points: DailyNetProfitPoint[] = [];
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month, day);
-    const jitter = basePerDay * 0.35 * (Math.random() - 0.5) * 2;
-    const value = Math.round((basePerDay + jitter) * 100) / 100;
-
-    points.push({
-      date: date.toISOString().slice(0, 10), // "YYYY-MM-DD"
-      net: value,
-    });
+  switch (preset) {
+    case '7d':
+      start = new Date(Date.now() - 7 * 86400000);
+      break;
+    case '90d':
+      start = new Date(Date.now() - 90 * 86400000);
+      break;
+    case 'month':
+      start = new Date(end.getFullYear(), end.getMonth(), 1);
+      break;
+    case '30d':
+    default:
+      start = new Date(Date.now() - 30 * 86400000);
+      break;
   }
 
-  return points;
+  return { startDate: start.toISOString().split('T')[0], endDate: endStr };
 }
 
-const expenseAccentColors: Record<ExpenseKey, string> = {
-  metaAds: "#a855f7",
-  tiktokAds: "#ec4899",
-  klaviyo: "#22c55e",
-  collaborators: "#38bdf8",
-  variableCosts: "#f59e0b",
+const COUNTRY_FLAGS: Record<string, string> = {
+  PT: '\u{1F1F5}\u{1F1F9}',
+  ES: '\u{1F1EA}\u{1F1F8}',
+  DE: '\u{1F1E9}\u{1F1EA}',
 };
 
-function formatCurrency(value: number, currency: string = 'EUR') {
-  return value.toLocaleString('pt-PT', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+// --- Revenue Chart ---
 
-/** Minimal smooth line chart, Shopify dashboard style. */
-function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
-  if (!Array.isArray(points) || points.length === 0) {
+function RevenueChart({ points }: { points: Array<{ date: string; total_revenue: number }> }) {
+  if (points.length === 0) {
     return (
       <div className="flex h-24 items-center justify-center text-[11px] text-muted-foreground">
-        No available daily Net Profit data.
+        No revenue data. Click &quot;Recalculate&quot; to generate from orders.
       </div>
     );
   }
 
-  // Sort by date and prepare chart data
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
-  const chartData = sorted.map((p) => {
-    const d = new Date(p.date);
-    const dayLabel = d.getDate().toString().padStart(2, '0');
-    return {
-      day: dayLabel,
-      net: p.net,
-    };
-  });
+  const chartData = sorted.map((p) => ({
+    day: new Date(p.date).getDate().toString().padStart(2, '0'),
+    revenue: Number(p.total_revenue),
+  }));
 
   return (
-    <div className="mt-4 h-32 w-full md:h-40" role="img" aria-label={`Daily net profit chart for ${sorted.length} days. Values range from ${formatCurrency(Math.min(...sorted.map(p => p.net)), 'EUR')} to ${formatCurrency(Math.max(...sorted.map(p => p.net)), 'EUR')}.`}>
+    <div className="mt-4 h-32 w-full md:h-40">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={chartData}
-          margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-        >
+        <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
           <defs>
-            {/* Line gradient */}
-            <linearGradient id="netProfitStroke" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id="revStroke" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#a855f7" />
               <stop offset="100%" stopColor="#a855f7" />
             </linearGradient>
-
-            {/* Fill gradient */}
-            <linearGradient id="netProfitFill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="rgba(168,85,247,0.35)" />
               <stop offset="100%" stopColor="rgba(168,85,247,0)" />
             </linearGradient>
           </defs>
-
           <XAxis
             dataKey="day"
             tickLine={false}
@@ -192,9 +104,7 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
             tick={{ fontSize: 10, fill: '#64748b' }}
             padding={{ left: 4, right: 4 }}
           />
-
           <YAxis hide domain={['dataMin', 'dataMax']} />
-
           <Tooltip
             cursor={{ stroke: 'rgba(148,163,184,0.25)', strokeWidth: 1 }}
             contentStyle={{
@@ -203,23 +113,15 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
               border: '1px solid rgba(148,163,184,0.35)',
               padding: '6px 8px',
             }}
-            labelStyle={{
-              fontSize: 10,
-              color: '#94a3b8',
-              marginBottom: 2,
-            }}
-            formatter={(value: any) => [
-              formatCurrency(value as number, 'EUR'),
-              'Net Profit',
-            ]}
+            labelStyle={{ fontSize: 10, color: '#94a3b8', marginBottom: 2 }}
+            formatter={(value: number) => [formatCurrency(value), 'Revenue']}
           />
-
           <Area
             type="monotone"
-            dataKey="net"
-            stroke="url(#netProfitStroke)"
+            dataKey="revenue"
+            stroke="url(#revStroke)"
             strokeWidth={2}
-            fill="url(#netProfitFill)"
+            fill="url(#revFill)"
             dot={false}
             activeDot={{ r: 3 }}
           />
@@ -229,319 +131,251 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
   );
 }
 
-// Vertical bar colors for each expense card
-const EXPENSE_COLORS: Record<ExpenseKey, string> = {
-  metaAds: '#38bdf8',
-  tiktokAds: '#f97316',
-  klaviyo: '#22c55e',
-  collaborators: '#a855f7',
-  variableCosts: '#eab308',
-};
+// --- Main Page ---
 
 export default function ProfitStatsPage() {
   const { toast } = useToast();
+  const { isAdmin, loading: authLoading } = useAuth();
 
-  // Local-state only until EPIC-2 Story 2.7 migrates to Supabase
-  const [data, setData] = useState<ProfitStatsDoc | null>(null);
+  const [data, setData] = useState<ProfitSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
+  const [preset, setPreset] = useState('30d');
+  const [country, setCountry] = useState('all');
 
-  const [editingKey, setEditingKey] = useState<ExpenseKey | null>(null);
-  const [tempExtra, setTempExtra] = useState('');
-  const [savingExtra, setSavingExtra] = useState(false);
-
-  // --------- Load data (local-state only, no persistence) ----------
-  useEffect(() => {
-    const dailyNet = buildDummyDailyNetProfit(
-      dummyProfitDoc.totalRevenue,
-      dummyProfitDoc.expenses
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const { startDate, endDate } = getDateRange(preset);
+    const result = await getProfitSummary(
+      startDate,
+      endDate,
+      country !== 'all' ? country : undefined
     );
-    setData({ ...dummyProfitDoc, dailyNetProfit: dailyNet });
+    if (result.success && result.data) {
+      setData(result.data);
+    }
     setLoading(false);
-  }, []);
+  }, [preset, country]);
 
-  if (loading || !data) {
+  useEffect(() => {
+    if (isAdmin) fetchData();
+  }, [isAdmin, fetchData]);
+
+  const handleRecalculate = async () => {
+    setRecalculating(true);
+    const { startDate, endDate } = getDateRange(preset);
+    const result = await recalculateRevenue(startDate, endDate);
+    if (result.success) {
+      toast({ title: 'Revenue Recalculated', description: `${result.calculated} entries updated.` });
+      fetchData();
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setRecalculating(false);
+  };
+
+  if (authLoading) {
     return (
-      <div className="flex flex-col gap-6" role="status" aria-label="Loading profit stats">
+      <div className="flex justify-center items-center h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
+    );
+  }
+
+  // Loading skeleton
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6" role="status">
         <div className="pt-1">
           <div className="h-10 w-48 animate-pulse rounded-md bg-muted" />
           <div className="h-4 w-64 mt-2 animate-pulse rounded-md bg-muted" />
         </div>
         <div className="rounded-2xl border border-white/8 bg-black/40 p-6 space-y-4">
           <div className="h-12 w-40 animate-pulse rounded-md bg-muted" />
-          <div className="h-4 w-64 animate-pulse rounded-md bg-muted" />
           <div className="h-32 w-full animate-pulse rounded-md bg-muted" />
         </div>
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="rounded-2xl border border-white/15 bg-black/5 p-4 flex items-center gap-3 border-l-[3px]">
-            <div className="flex flex-col gap-2 flex-1">
-              <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
-              <div className="h-3 w-20 animate-pulse rounded-md bg-muted" />
-            </div>
-            <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
-          </div>
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-24 rounded-xl border border-white/8 bg-black/40 animate-pulse" />
         ))}
-        <span className="sr-only">Loading profit statistics, please wait...</span>
       </div>
     );
   }
 
-  const rawDaily = (data as any).dailyNetProfit;
-  const dailyNetProfit: DailyNetProfitPoint[] = Array.isArray(rawDaily)
-    ? rawDaily
-    : [];
+  const profit = data?.profit ?? 0;
+  const revenue = data?.revenue ?? 0;
+  const totalExpenses = data?.totalExpenses ?? 0;
+  const margin = data?.margin ?? 0;
+  const trendPositive = profit >= 0;
 
-  const { currency, periodLabel, totalRevenue, expenses } = data;
-  // Ensure the array exists and is sorted by date
-  const safeDailyNet = Array.isArray(dailyNetProfit) ? dailyNetProfit : [];
-
-  const sortedDailyNet = [...safeDailyNet].sort((a, b) =>
-    a.date.localeCompare(b.date)
-  );
-
-  // Final format for Recharts
-  const chartData =
-  sortedDailyNet.length === 0
-    ? Array.from({ length: 10 }, (_, i) => ({
-        day: (i + 1).toString().padStart(2, "0"),
-        net: 0,
-      }))
-    : sortedDailyNet.map((point) => {
-        const d = new Date(point.date);
-        const dayLabel = d.getDate().toString().padStart(2, "0");
-        return { day: dayLabel, net: point.net };
-      });
-
-  const totalExpenses = (Object.keys(expenses) as ExpenseKey[]).reduce(
-    (acc, key) => {
-      const item = expenses[key];
-      return acc + item.base + item.extra;
-    },
-    0
-  );
-
-  const netProfit = totalRevenue - totalExpenses;
-  const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-  const trendPositive = netProfit >= 0;
-
-  // --------- Extra expenses ----------
-  const handleStartEditExtra = (key: ExpenseKey) => {
-    setEditingKey(key);
-    setTempExtra('');
-  };
-
-  const handleCancelEditExtra = () => {
-    setEditingKey(null);
-    setTempExtra('');
-  };
-
-  const handleSaveExtra = async (key: ExpenseKey) => {
-    if (!data) return;
-
-    const normalized = tempExtra.replace(',', '.');
-    const parsed = parseFloat(normalized);
-
-    if (isNaN(parsed)) {
-      toast({
-        variant: 'destructive',
-        title: 'Invalid value',
-        description: 'Please enter a valid numeric value.',
-      });
-      return;
-    }
-
-    const currentExtra = data.expenses[key]?.extra ?? 0;
-    const newExtra = currentExtra + parsed;
-
-    setSavingExtra(true);
-
-    // Local-state only — changes are not persisted until EPIC-2 Story 2.7
-    setData((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        expenses: {
-          ...prev.expenses,
-          [key]: {
-            ...prev.expenses[key],
-            extra: newExtra,
-          },
-        },
-      };
-    });
-
-    toast({
-      title: 'Extra applied',
-      description: 'Expense updated (local only — not persisted yet).',
-    });
-
-    setEditingKey(null);
-    setTempExtra('');
-    setSavingExtra(false);
-  };
+  const presetLabel = preset === '7d' ? 'Last 7 days' : preset === '30d' ? 'Last 30 days' : preset === '90d' ? 'Last 90 days' : 'This month';
 
   return (
     <div className="flex flex-col gap-6">
-            {/* HEADER */}
-            <div className="pt-1">
-        <div className="flex items-center gap-3">
-          <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
-            Profit Stats
-          </h1>
-
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/60 bg-yellow-400/10 px-2.5 py-0.5">
-            <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" />
-            <span className="text-[11px] font-medium tracking-wide text-yellow-200">
-              UNDER CONSTRUCTION
-            </span>
-          </div>
-        </div>
-
+      {/* HEADER + FILTERS */}
+      <div className="pt-1">
+        <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight">
+          Profit Stats
+        </h1>
         <p className="text-muted-foreground max-w-xl text-sm mt-1">
-          Financial snapshot from MisterTuga · {periodLabel}
+          Financial snapshot from MisterTuga &middot; {presetLabel}
         </p>
       </div>
 
-      {/* NET PROFIT CARD + CHART */}
+      {/* FILTER ROW */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1">
+          {(['7d', '30d', '90d', 'month'] as const).map((p) => (
+            <Button
+              key={p}
+              size="sm"
+              variant={preset === p ? 'default' : 'outline'}
+              className="h-8 text-xs"
+              onClick={() => setPreset(p)}
+            >
+              {p === '7d' ? '7d' : p === '30d' ? '30d' : p === '90d' ? '90d' : 'Month'}
+            </Button>
+          ))}
+        </div>
+        <Select value={country} onValueChange={setCountry}>
+          <SelectTrigger className="w-36 h-8 text-xs bg-black/60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Countries</SelectItem>
+            <SelectItem value="PT">Portugal</SelectItem>
+            <SelectItem value="ES">Spain</SelectItem>
+            <SelectItem value="DE">Germany</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs ml-auto"
+          onClick={handleRecalculate}
+          disabled={recalculating}
+        >
+          {recalculating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+          Recalculate
+        </Button>
+      </div>
+
+      {/* NET PROFIT CARD */}
       <Card
-          aria-label={`Net profit: ${formatCurrency(netProfit, currency)}. Revenue: ${formatCurrency(totalRevenue, currency)}, Expenses: ${formatCurrency(totalExpenses, currency)}, Margin: ${netMargin.toFixed(1)}%`}
-          className="relative overflow-hidden rounded-2xl border border-white/8 bg-black/40
-             shadow-[0_14px_35px_rgba(0,0,0,0.55)]
-             after:pointer-events-none after:absolute after:inset-x-8 after:-bottom-6
-             after:h-8 after:rounded-full after:bg-purple-500/25 after:blur-2" >      
-          <CardHeader className="flex flex-row items-start justify-between gap-4 pb-1">
+        className="relative overflow-hidden rounded-2xl border border-white/8 bg-black/40
+          shadow-[0_14px_35px_rgba(0,0,0,0.55)]
+          after:pointer-events-none after:absolute after:inset-x-8 after:-bottom-6
+          after:h-8 after:rounded-full after:bg-purple-500/25 after:blur-2xl"
+      >
+        <CardHeader className="flex flex-row items-start justify-between gap-4 pb-1">
           <div className="space-y-1">
             <CardDescription className="text-[11px] uppercase tracking-[0.18em] text-slate-300/80">
               Net Profit
             </CardDescription>
-            <div className="flex items-baseline gap-2">
-              <p className="text-4xl md:text-5xl font-semibold tabular-nums tracking-tight">
-                {formatCurrency(netProfit, currency)}
-              </p>
-
-            </div>
-
+            <p className="text-4xl md:text-5xl font-semibold tabular-nums tracking-tight">
+              {formatCurrency(profit)}
+            </p>
             <div className="flex gap-4 text-[11px] text-muted-foreground">
-              <span>{formatCurrency(totalRevenue, currency)} revenue</span>
-              <span>{formatCurrency(totalExpenses, currency)} expenses</span>
+              <span>{formatCurrency(revenue)} revenue</span>
+              <span>{formatCurrency(totalExpenses)} expenses</span>
             </div>
           </div>
-
           <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[11px]">
-          {trendPositive ? (
-            <>
-              <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-emerald-300">
-                {netMargin.toFixed(1)}%
-              </span>
-            </>
-          ) : (
-            <>
-              <ArrowDownRight className="h-3.5 w-3.5 text-red-400" />
-              <span className="text-red-300">
-                {netMargin.toFixed(1)}%
-              </span>
-            </>
-          )}
-        </div>
+            {trendPositive ? (
+              <>
+                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-emerald-300">{margin.toFixed(1)}%</span>
+              </>
+            ) : (
+              <>
+                <ArrowDownRight className="h-3.5 w-3.5 text-red-400" />
+                <span className="text-red-300">{margin.toFixed(1)}%</span>
+              </>
+            )}
+          </div>
         </CardHeader>
-
         <CardContent className="pt-0">
-          <NetProfitLineChart points={dailyNetProfit} />
+          <RevenueChart points={data?.dailyRevenue ?? []} />
         </CardContent>
       </Card>
 
-      {/* EXPENSE CARDS */}
-      <div className="flex flex-col gap-3">
-        {(Object.keys(expenses) as ExpenseKey[]).map((key) => {
-          const item = expenses[key];
-          const total = item.base + item.extra;
-          const color = EXPENSE_COLORS[key] ?? '#64748b';
-          const isEditing = editingKey === key;
-
-          return (
-            <Card
-            key={key}
-            className="rounded-2xl border border-l-[3px] bg-black/5 border-white/15
-                       backdrop-blur-md shadow-[0_18px_30px_rgba(0,0,0,0.25)]"
-            style={{ borderLeftColor: expenseAccentColors[key] }}
-          >
-            <CardContent className="flex w-full items-center gap-3 p-3.5">
-              {/* Expense info */}
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">{item.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatCurrency(total, currency)}
-                </span>
-              </div>
-    
-              {/* Action buttons — right-aligned */}
-              {isEditing ? (
-                <div className="ml-auto flex items-center gap-1">
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    value={tempExtra}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-    
-                      if (raw === '') {
-                        setTempExtra('');
-                        return;
-                      }
-    
-                      // Only digits and one decimal separator
-                      const normalized = raw.replace(/,/g, '.');
-                      const isValid = /^\d*\.?\d*$/.test(normalized);
-    
-                      if (isValid) {
-                        setTempExtra(raw);
-                      }
-                    }}
-                    className="h-8 w-24 text-xs bg-black/60"
-                    placeholder="+0,00"
-                    autoFocus
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-8 w-8"
-                    disabled={savingExtra}
-                    type="button"
-                    aria-label="Save extra expense"
-                    onClick={() => handleSaveExtra(key)}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    type="button"
-                    aria-label="Cancel"
-                    onClick={handleCancelEditExtra}
-                  >
-                    <XIcon className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="ml-auto">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="h-8 w-8 rounded-full border-dashed border-white/30 bg-black/30"
-                    aria-label={`Add extra expense to ${item.label}`}
-                    onClick={() => handleStartEditExtra(key)}
-                  >
-                    <Plus className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          );
-        })}
+      {/* BREAKDOWN CARDS */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="rounded-xl border border-white/8 bg-black/40">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Revenue</p>
+            <p className="text-2xl font-semibold tabular-nums">{formatCurrency(revenue)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {data?.orderCount ?? 0} orders &middot; {data?.itemCount ?? 0} items
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl border border-white/8 bg-black/40">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Ad Spend</p>
+            <p className="text-2xl font-semibold tabular-nums">{formatCurrency(data?.adSpend ?? 0)}</p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl border border-white/8 bg-black/40">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Expenses</p>
+            <p className="text-2xl font-semibold tabular-nums">{formatCurrency((data?.manualExpenses ?? 0) + (data?.fixedCosts ?? 0))}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Manual + fixed monthly
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl border border-white/8 bg-black/40">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Net Profit</p>
+            <p className={`text-2xl font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {formatCurrency(profit)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{margin.toFixed(1)}% margin</p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* COUNTRY BREAKDOWN */}
+      {(data?.byCountry ?? []).length > 0 && (
+        <Card className="rounded-2xl border border-white/8 bg-black/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Globe className="h-4 w-4 text-blue-400" />
+              Revenue by Country
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {(data?.byCountry ?? [])
+                .sort((a, b) => b.total_revenue - a.total_revenue)
+                .map((c) => {
+                  const pct = revenue > 0 ? (c.total_revenue / revenue) * 100 : 0;
+                  return (
+                    <div key={c.country_code} className="flex items-center gap-3">
+                      <span className="text-lg w-8">{COUNTRY_FLAGS[c.country_code] ?? c.country_code}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">{c.country_code}</span>
+                          <span className="text-sm tabular-nums">{formatCurrency(c.total_revenue)}</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-white/5">
+                          <div
+                            className="h-full rounded-full bg-purple-500"
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                          <span>{c.order_count} orders</span>
+                          <span>{pct.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

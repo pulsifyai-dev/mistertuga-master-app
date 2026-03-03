@@ -17,6 +17,8 @@ import { createUser, listUsers } from './actions';
 import { listEmailTemplates, createEmailTemplate, updateEmailTemplate, deleteEmailTemplate } from './email-actions';
 import { TEMPLATE_PLACEHOLDERS, renderTemplate } from '@/app/(app)/exchanges/types';
 import type { EmailTemplate } from '@/app/(app)/exchanges/types';
+import { AdAccountsCard } from './ad-integrations/AdAccountsCard';
+import { ExpenseCatalogCard } from './expense-catalog/ExpenseCatalogCard';
 
 export default function SettingsPage() {
   const { user, isAdmin, loading: isLoading } = useAuth();
@@ -574,6 +576,10 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+      {/* Ad Integrations — ADMIN only */}
+      {isAdmin && <AdAccountsCard />}
+      {/* Expense Catalog — ADMIN only */}
+      {isAdmin && <ExpenseCatalogCard />}
     </div>
   );
 }
