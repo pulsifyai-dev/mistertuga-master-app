@@ -67,9 +67,9 @@ export default function DashboardSidebar() {
   };
 
   // Close sidebar after logout
-  const handleLogout = () => {
-    signOut();
+  const handleLogout = async () => {
     setOpen(false);
+    await signOut();
   };
   
   const filteredSidebarItems = ALL_SIDEBAR_ITEMS.filter(item => {

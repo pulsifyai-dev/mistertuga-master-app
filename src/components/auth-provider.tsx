@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    window.location.href = '/login';
   };
 
   const isAdmin = role === 'ADMIN';

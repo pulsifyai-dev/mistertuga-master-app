@@ -9,8 +9,6 @@ import type { Order, EditOrderSchema, CountryCode } from './types';
 // Hooks
 import { useOrders } from './hooks/useOrders';
 import { useOrderFilters } from './hooks/useOrderFilters';
-import { usePdfExport } from './hooks/usePdfExport';
-import { useExcelExport } from './hooks/useExcelExport';
 
 // Components
 import { OrderEmptyState } from './components/OrderEmptyState';
@@ -19,7 +17,6 @@ import { CountryTabs } from './components/CountryTabs';
 import { OrderFilters } from './components/OrderFilters';
 import { OrdersTable } from './components/OrdersTable';
 import { OrderEditDialog } from './components/OrderEditDialog';
-import { ExportOverlay } from './components/ExportControls';
 
 export default function MasterShopifyOrdersPage() {
   const { toast } = useToast();
@@ -27,8 +24,6 @@ export default function MasterShopifyOrdersPage() {
   // Data hooks
   const { orders, pageLoading, isUserLoading, user } = useOrders();
   const filters = useOrderFilters(orders);
-  const { isExporting, exportChunksInfo, handleExportPackingSheetPDF } = usePdfExport();
-  const { handleExportCurrentListXLSX } = useExcelExport();
 
   // Local UI state
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
@@ -37,7 +32,6 @@ export default function MasterShopifyOrdersPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [webhookExporting, setWebhookExporting] = useState(false);
 
   // Scroll-to-top listener
   useEffect(() => {
@@ -130,34 +124,6 @@ export default function MasterShopifyOrdersPage() {
     }
   };
 
-  const handleWebhookExport = async () => {
-    setWebhookExporting(true);
-    try {
-      await fetch('https://webhook-mistertuga.pulsifyai.com/webhook/app_mistertuga_export', {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user: user?.email,
-          tab: filters.orderTab,
-          filter: filters.activeFilter,
-          orderCount: filters.listToShow.length,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-      toast({
-        title: 'Export Signal Sent',
-        description: 'The request was sent to the automation service.',
-        className: 'bg-green-500/20 border-green-500/50 text-white backdrop-blur-md',
-      });
-    } catch (error) {
-      console.error('Webhook error:', error);
-      toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not reach the export server.' });
-    } finally {
-      setWebhookExporting(false);
-    }
-  };
-
   const handleFilterChange = (filter: CountryCode) => {
     filters.setActiveFilter(filter);
     filters.setSelectedOrderIdForSearch(null);
@@ -205,8 +171,6 @@ export default function MasterShopifyOrdersPage() {
 
   return (
     <>
-      <ExportOverlay isExporting={isExporting} exportChunksInfo={exportChunksInfo} />
-
       <OrderEditDialog
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
@@ -257,8 +221,6 @@ export default function MasterShopifyOrdersPage() {
           onEndDateChange={filters.setEndDate}
           onDateFilterOpenChange={filters.setIsDateFilterOpen}
           onResetDateFilter={filters.handleResetDateFilter}
-          isExporting={webhookExporting}
-          onWebhookExport={handleWebhookExport}
         />
 
         {/* Orders list */}

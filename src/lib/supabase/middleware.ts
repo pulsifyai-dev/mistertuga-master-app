@@ -33,21 +33,24 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const pathname = request.nextUrl.pathname;
+
   // Redirect unauthenticated users to login (except login page itself)
   if (
     !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
+    !pathname.startsWith('/login') &&
+    !pathname.startsWith('/auth')
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from login page
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  // Redirect authenticated users away from login page and root
+  if (user && (pathname === '/' || pathname.startsWith('/login'))) {
+    const role = user.app_metadata?.user_role;
     const url = request.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = role === 'ADMIN' ? '/profit-stats' : '/master-shopify-orders';
     return NextResponse.redirect(url);
   }
 

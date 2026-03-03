@@ -30,8 +30,6 @@ export type Order = {
   supabaseId?: string;
 };
 
-export type ExportType = 'pending' | 'shipped' | 'all';
-
 export type CountryCode = 'ALL' | 'PT' | 'DE' | 'ES' | 'GB';
 
 export type DateFilterState = {
@@ -62,20 +60,7 @@ export const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const CURRENT_YEAR = new Date().getFullYear();
 export const YEARS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR - 3 + i);
 
-export const MAX_ORDERS_PER_PDF = 200;
-
 export const ITEMS_PER_PAGE = 10;
-
-export const PDF_LOADING_MESSAGES = [
-  "Making your PDF look pretty...",
-  "Printing pixels on invisible paper...",
-  "Collecting all your orders in one place...",
-  "Polishing thumbnails, hang on...",
-  "Lining up rows and columns...",
-  "Double-checking names and numbers...",
-  "Almost there, don't go anywhere...",
-  "Last touch, your PDF is coming...",
-];
 
 // --- Helpers ---
 export const pad = (n: number) => n.toString().padStart(2, '0');

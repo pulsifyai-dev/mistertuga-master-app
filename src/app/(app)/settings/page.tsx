@@ -8,8 +8,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock } from 'lucide-react';
+import { Loader2, Lock, UserPlus, Shield, Truck } from 'lucide-react';
 import { validateWebhookUrl } from '@/lib/validate-webhook-url';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { createUser, listUsers } from './actions';
 
 export default function SettingsPage() {
   const { user, isAdmin, loading: isLoading } = useAuth();
@@ -21,6 +24,63 @@ export default function SettingsPage() {
   const [loadingWebhook, setLoadingWebhook] = useState(true);
   const [savingWebhook, setSavingWebhook] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // User management state
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [addingUser, setAddingUser] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'ADMIN' | 'FORNECEDOR'>('FORNECEDOR');
+  const [newUserCountries, setNewUserCountries] = useState<string[]>([]);
+  const [users, setUsers] = useState<{ id: string; email: string; name: string; role: string; assigned_countries: string[]; created_at: string }[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    const result = await listUsers();
+    if (result.success) setUsers(result.users);
+    setLoadingUsers(false);
+  };
+
+  const handleAddUser = async () => {
+    if (!newUserName || !newUserEmail || !newUserPassword) {
+      toast({ variant: 'destructive', title: 'Error', description: 'All fields are required.' });
+      return;
+    }
+    setAddingUser(true);
+    try {
+      const result = await createUser({
+        name: newUserName,
+        email: newUserEmail,
+        password: newUserPassword,
+        role: newUserRole,
+        assignedCountries: newUserRole === 'FORNECEDOR' ? newUserCountries : ['PT', 'ES', 'DE'],
+      });
+      if (result.success) {
+        toast({ title: 'User Created', description: `${newUserEmail} added as ${newUserRole}.` });
+        setIsAddUserOpen(false);
+        setNewUserName('');
+        setNewUserEmail('');
+        setNewUserPassword('');
+        setNewUserRole('FORNECEDOR');
+        setNewUserCountries([]);
+        fetchUsers();
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to create user.' });
+    } finally {
+      setAddingUser(false);
+    }
+  };
+
+  const toggleCountry = (code: string) => {
+    setNewUserCountries((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
 
   useEffect(() => {
     if (user) {
@@ -48,6 +108,7 @@ export default function SettingsPage() {
     };
 
     fetchWebhookUrl();
+    fetchUsers();
   }, [isAdmin]);
 
   const handleSaveWebhook = async () => {
@@ -228,6 +289,123 @@ export default function SettingsPage() {
           </Card>
         )}
       </div>
+
+      {/* User Management — ADMIN only */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>User Management</CardTitle>
+              <CardDescription>Add and manage platform users.</CardDescription>
+            </div>
+            <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Add New User</DialogTitle>
+                  <DialogDescription>Create a new user account. They can log in immediately.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-user-name">Name</Label>
+                    <Input id="new-user-name" placeholder="John Doe" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-user-email">Email</Label>
+                    <Input id="new-user-email" type="email" placeholder="user@example.com" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-user-password">Password</Label>
+                    <Input id="new-user-password" type="password" placeholder="Min. 6 characters" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as 'ADMIN' | 'FORNECEDOR')}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ADMIN">
+                          <div className="flex items-center gap-2"><Shield className="h-3.5 w-3.5" /> Admin</div>
+                        </SelectItem>
+                        <SelectItem value="FORNECEDOR">
+                          <div className="flex items-center gap-2"><Truck className="h-3.5 w-3.5" /> Supplier</div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {newUserRole === 'FORNECEDOR' && (
+                    <div className="space-y-2">
+                      <Label>Assigned Countries</Label>
+                      <div className="flex gap-2">
+                        {['PT', 'ES', 'DE'].map((code) => (
+                          <Button
+                            key={code}
+                            type="button"
+                            size="sm"
+                            variant={newUserCountries.includes(code) ? 'default' : 'outline'}
+                            onClick={() => toggleCountry(code)}
+                            className="px-3"
+                          >
+                            {code}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button onClick={handleAddUser} disabled={addingUser}>
+                    {addingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create User
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            {loadingUsers ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : users.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No users found.</p>
+            ) : (
+              <div className="space-y-2">
+                {users.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between rounded-lg border border-white/10 px-4 py-3">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{u.name}</span>
+                      <span className="text-xs text-muted-foreground">{u.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {u.role === 'ADMIN' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/20 px-2.5 py-0.5 text-xs text-purple-300">
+                          <Shield className="h-3 w-3" /> Admin
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 px-2.5 py-0.5 text-xs text-blue-300">
+                          <Truck className="h-3 w-3" /> Supplier
+                        </span>
+                      )}
+                      {u.assigned_countries?.length > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {u.assigned_countries.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

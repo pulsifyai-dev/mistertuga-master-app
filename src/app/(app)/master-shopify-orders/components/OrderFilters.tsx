@@ -4,8 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Download, Calendar as CalendarIcon, X } from 'lucide-react';
-import { Loader2 } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, X } from 'lucide-react';
 import type { Order, DateFilterState } from '../types';
 import { MONTHS, DAYS, YEARS, pad } from '../types';
 
@@ -33,10 +32,6 @@ interface OrderFiltersProps {
   onEndDateChange: (date: DateFilterState) => void;
   onDateFilterOpenChange: (open: boolean) => void;
   onResetDateFilter: () => void;
-
-  // Export
-  isExporting: boolean;
-  onWebhookExport: () => void;
 }
 
 export function OrderFilters({
@@ -58,8 +53,6 @@ export function OrderFilters({
   onEndDateChange,
   onDateFilterOpenChange,
   onResetDateFilter,
-  isExporting,
-  onWebhookExport,
 }: OrderFiltersProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -112,18 +105,6 @@ export function OrderFilters({
       )}
 
       <div className="flex items-center gap-2">
-        {/* Webhook export */}
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={onWebhookExport}
-          disabled={isExporting}
-          className="h-8 w-8 rounded-full border-white/10 hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30 disabled:opacity-50"
-        >
-          {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          <span className="sr-only">Export to Webhook</span>
-        </Button>
-
         {/* Date filter popover */}
         <Popover open={isDateFilterOpen} onOpenChange={onDateFilterOpenChange}>
           <PopoverTrigger asChild>
