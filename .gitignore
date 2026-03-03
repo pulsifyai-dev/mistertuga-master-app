@@ -45,6 +45,9 @@ next-env.d.ts
 docs/product/*.json
 docs/product/*.xlsx
 
+# Migration data (contains customer PII — Firestore exports)
+scripts/migration/data/
+
 # AIOS Framework (symlinks to global hub)
 .aios-core
 squads
