@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { ArrowUpRight, ArrowDownRight, Plus, Check, X as XIcon, AlertTriangle } from 'lucide-react';
 
 import {
@@ -12,8 +11,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-import { useFirebase } from '@/firebase';
 import {
   Card,
   CardHeader,
@@ -242,9 +239,9 @@ const EXPENSE_COLORS: Record<ExpenseKey, string> = {
 };
 
 export default function ProfitStatsPage() {
-  const { firestore } = useFirebase();
   const { toast } = useToast();
 
+  // Local-state only until EPIC-2 Story 2.7 migrates to Supabase
   const [data, setData] = useState<ProfitStatsDoc | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -252,67 +249,15 @@ export default function ProfitStatsPage() {
   const [tempExtra, setTempExtra] = useState('');
   const [savingExtra, setSavingExtra] = useState(false);
 
-  // --------- Load data ----------
+  // --------- Load data (local-state only, no persistence) ----------
   useEffect(() => {
-    if (!firestore) {
-      setLoading(false);
-      return;
-    }
-  
-    let cancelled = false;
-  
-    const load = async () => {
-      try {
-        const ref = doc(firestore, 'metrics', 'profit-stats');
-        const snap = await getDoc(ref);
-  
-        if (!snap.exists()) {
-          // Document doesn't exist — create with dummy + dailyNetProfit
-          const dailyNet = buildDummyDailyNetProfit(
-            dummyProfitDoc.totalRevenue,
-            dummyProfitDoc.expenses
-          );
-  
-          const docToSave: ProfitStatsDoc = {
-            ...dummyProfitDoc,
-            dailyNetProfit: dailyNet,
-          };
-  
-          await setDoc(ref, docToSave);
-          if (!cancelled) {
-            setData(docToSave);
-          }
-        } else {
-          // Document exists — ensure it has dailyNetProfit
-          const raw = snap.data() as any;
-  
-          if (!raw.dailyNetProfit || !Array.isArray(raw.dailyNetProfit)) {
-            const dailyNet = buildDummyDailyNetProfit(
-              raw.totalRevenue,
-              raw.expenses
-            );
-  
-            await updateDoc(ref, { dailyNetProfit: dailyNet });
-            raw.dailyNetProfit = dailyNet;
-          }
-  
-          if (!cancelled) {
-            setData(raw as ProfitStatsDoc);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading profit-stats:', error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-  
-    load();
-  
-    return () => {
-      cancelled = true;
-    };
-  }, [firestore]);
+    const dailyNet = buildDummyDailyNetProfit(
+      dummyProfitDoc.totalRevenue,
+      dummyProfitDoc.expenses
+    );
+    setData({ ...dummyProfitDoc, dailyNetProfit: dailyNet });
+    setLoading(false);
+  }, []);
 
   if (loading || !data) {
     return (
@@ -390,7 +335,7 @@ export default function ProfitStatsPage() {
   };
 
   const handleSaveExtra = async (key: ExpenseKey) => {
-    if (!firestore || !data) return;
+    if (!data) return;
 
     const normalized = tempExtra.replace(',', '.');
     const parsed = parseFloat(normalized);
@@ -404,49 +349,34 @@ export default function ProfitStatsPage() {
       return;
     }
 
-    const increment = parsed;
     const currentExtra = data.expenses[key]?.extra ?? 0;
-    const newExtra = currentExtra + increment;
+    const newExtra = currentExtra + parsed;
 
     setSavingExtra(true);
-    try {
-      const docRef = doc(firestore, 'metrics', 'profit-stats');
-      await updateDoc(docRef, {
-        [`expenses.${key}.extra`]: newExtra,
-      });
 
-      setData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          expenses: {
-            ...prev.expenses,
-            [key]: {
-              ...prev.expenses[key],
-              extra: newExtra,
-            },
+    // Local-state only — changes are not persisted until EPIC-2 Story 2.7
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        expenses: {
+          ...prev.expenses,
+          [key]: {
+            ...prev.expenses[key],
+            extra: newExtra,
           },
-        };
-      });
+        },
+      };
+    });
 
-      toast({
-        title: 'Extra applied',
-        description: 'Expense updated successfully.',
-      });
+    toast({
+      title: 'Extra applied',
+      description: 'Expense updated (local only — not persisted yet).',
+    });
 
-      setEditingKey(null);
-      setTempExtra('');
-    } catch (error: any) {
-      console.error('Error saving extra:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error saving',
-        description:
-          error?.message || 'Could not save the expense adjustment.',
-      });
-    } finally {
-      setSavingExtra(false);
-    }
+    setEditingKey(null);
+    setTempExtra('');
+    setSavingExtra(false);
   };
 
   return (
