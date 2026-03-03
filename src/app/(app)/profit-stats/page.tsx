@@ -172,7 +172,7 @@ function NetProfitLineChart({ points }: { points?: DailyNetProfitPoint[] }) {
   });
 
   return (
-    <div className="mt-4 h-32 w-full md:h-40">
+    <div className="mt-4 h-32 w-full md:h-40" role="img" aria-label={`Daily net profit chart for ${sorted.length} days. Values range from ${formatCurrency(Math.min(...sorted.map(p => p.net)), 'EUR')} to ${formatCurrency(Math.max(...sorted.map(p => p.net)), 'EUR')}.`}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={chartData}
@@ -320,8 +320,26 @@ export default function ProfitStatsPage() {
 
   if (loading || !data) {
     return (
-      <div className="flex h-[300px] w-full items-center justify-center text-sm text-muted-foreground">
-        Loading profit metrics...
+      <div className="flex flex-col gap-6" role="status" aria-label="Loading profit stats">
+        <div className="pt-1">
+          <div className="h-10 w-48 animate-pulse rounded-md bg-muted" />
+          <div className="h-4 w-64 mt-2 animate-pulse rounded-md bg-muted" />
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-black/40 p-6 space-y-4">
+          <div className="h-12 w-40 animate-pulse rounded-md bg-muted" />
+          <div className="h-4 w-64 animate-pulse rounded-md bg-muted" />
+          <div className="h-32 w-full animate-pulse rounded-md bg-muted" />
+        </div>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="rounded-2xl border border-white/15 bg-black/5 p-4 flex items-center gap-3" style={{ borderLeftWidth: 3 }}>
+            <div className="flex flex-col gap-2 flex-1">
+              <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
+              <div className="h-3 w-20 animate-pulse rounded-md bg-muted" />
+            </div>
+            <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+          </div>
+        ))}
+        <span className="sr-only">Loading profit statistics, please wait...</span>
       </div>
     );
   }
@@ -459,6 +477,7 @@ export default function ProfitStatsPage() {
 
       {/* CARD PRINCIPAL NET PROFIT + GRÁFICO */}
       <Card
+          aria-label={`Net profit: ${formatCurrency(netProfit, currency)}. Revenue: ${formatCurrency(totalRevenue, currency)}, Expenses: ${formatCurrency(totalExpenses, currency)}, Margin: ${netMargin.toFixed(1)}%`}
           className="relative overflow-hidden rounded-2xl border border-white/8 bg-black/40
              shadow-[0_14px_35px_rgba(0,0,0,0.55)]
              after:pointer-events-none after:absolute after:inset-x-8 after:-bottom-6
@@ -565,6 +584,7 @@ export default function ProfitStatsPage() {
                     className="h-8 w-8"
                     disabled={savingExtra}
                     type="button"
+                    aria-label="Save extra expense"
                     onClick={() => handleSaveExtra(key)}
                   >
                     <Check className="h-4 w-4" />
@@ -574,6 +594,7 @@ export default function ProfitStatsPage() {
                     variant="ghost"
                     className="h-8 w-8"
                     type="button"
+                    aria-label="Cancel"
                     onClick={handleCancelEditExtra}
                   >
                     <XIcon className="h-4 w-4" />
@@ -586,6 +607,7 @@ export default function ProfitStatsPage() {
                     size="icon"
                     variant="outline"
                     className="h-8 w-8 rounded-full border-dashed border-white/30 bg-black/30"
+                    aria-label={`Add extra expense to ${item.label}`}
                     onClick={() => handleStartEditExtra(key)}
                   >
                     <Plus className="h-4 w-4 text-muted-foreground" />

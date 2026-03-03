@@ -38,6 +38,7 @@ export function TrackingInput({
           size="icon"
           className="h-6 w-6 bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
           type="button"
+          aria-label="Reset tracking number"
           onClick={() => onReset(order)}
         >
           <RotateCcw className="h-4 w-4" />

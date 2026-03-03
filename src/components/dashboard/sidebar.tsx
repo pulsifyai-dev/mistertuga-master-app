@@ -113,7 +113,7 @@ export default function DashboardSidebar() {
                     (isActive ? activeButtonClasses : inactiveButtonClasses)
                   }
                 >
-                  <Link href={item.href} onClick={handleNavClick}>
+                  <Link href={item.href} onClick={handleNavClick} aria-current={isActive ? 'page' : undefined}>
                     <Icon className="h-4 w-4" />
                     <span className="truncate">{item.label}</span>
                   </Link>
@@ -135,7 +135,7 @@ export default function DashboardSidebar() {
                 (isSettingsActive ? activeButtonClasses : inactiveButtonClasses)
               }
             >
-              <Link href="/settings" onClick={handleNavClick}>
+              <Link href="/settings" onClick={handleNavClick} aria-current={isSettingsActive ? 'page' : undefined}>
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>
               </Link>

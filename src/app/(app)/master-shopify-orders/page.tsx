@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, ChevronUp } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { updateOrderDetails, resetTrackingNumber } from './actions';
 import type { Order, EditOrderSchema, CountryCode } from './types';
@@ -14,6 +14,7 @@ import { useExcelExport } from './hooks/useExcelExport';
 
 // Components
 import { OrderEmptyState } from './components/OrderEmptyState';
+import { OrdersSkeleton } from './components/OrdersSkeleton';
 import { CountryTabs } from './components/CountryTabs';
 import { OrderFilters } from './components/OrderFilters';
 import { OrdersTable } from './components/OrdersTable';
@@ -170,7 +171,9 @@ export default function MasterShopifyOrdersPage() {
 
   const handleSearchChange = (query: string) => {
     filters.setSearchQuery(query);
-    filters.setSelectedOrderIdForSearch(null);
+    if (query) {
+      filters.setSelectedOrderIdForSearch(null);
+    }
   };
 
   const handleSelectSearchResult = (orderId: string) => {
@@ -186,11 +189,7 @@ export default function MasterShopifyOrdersPage() {
   // --- Loading / Auth Guards ---
 
   if (pageLoading || isUserLoading) {
-    return (
-      <div className="flex h-[400px] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <OrdersSkeleton />;
   }
 
   if (!user) {
@@ -284,6 +283,7 @@ export default function MasterShopifyOrdersPage() {
       {showScrollTop && (
         <button
           type="button"
+          aria-label="Scroll to top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-16 right-6 z-[9999] rounded-full bg-white/10 border border-white/30 backdrop-blur-md text-white shadow-lg p-3 hover:bg-purple-500/20 active:bg-purple-500/30 transition"
         >

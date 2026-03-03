@@ -90,10 +90,11 @@ export function useOrderFilters(orders: Order[]) {
   const searchMatches = useMemo(() => {
     if (searchQuery.trim().length === 0) return [];
     const q = searchQuery.toLowerCase();
-    return filteredOrders
+    const tabOrders = orderTab === 'pending' ? pendingOrders : shippedOrders;
+    return tabOrders
       .filter((o) => o.id.toLowerCase().includes(q) || o.customer.name.toLowerCase().includes(q))
       .slice(0, 10);
-  }, [searchQuery, filteredOrders]);
+  }, [searchQuery, orderTab, pendingOrders, shippedOrders]);
 
   return {
     // Filter state

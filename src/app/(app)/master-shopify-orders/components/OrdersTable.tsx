@@ -1,6 +1,8 @@
 'use client';
 
+import { Package, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { OrderRow } from './OrderRow';
 import type { Order } from '../types';
 
@@ -44,7 +46,23 @@ export function OrdersTable({
       </h2>
 
       {orders.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No orders found.</p>
+        <Card className="flex flex-col items-center justify-center p-8 gap-3 text-center">
+          {orderTab === 'pending' ? (
+            <Package className="w-10 h-10 text-muted-foreground" aria-hidden="true" />
+          ) : (
+            <Truck className="w-10 h-10 text-muted-foreground" aria-hidden="true" />
+          )}
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium">
+              {orderTab === 'pending' ? 'No pending orders' : 'No shipped orders'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {orderTab === 'pending'
+                ? 'All orders have been processed or no orders match the current filters.'
+                : 'No orders have been shipped yet for the current filters.'}
+            </p>
+          </div>
+        </Card>
       ) : (
         <div className="flex flex-col gap-4">
           {orders.map((order) => (

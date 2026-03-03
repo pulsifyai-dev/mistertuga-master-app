@@ -46,12 +46,15 @@ export function OrderRow({
       style={{ borderLeft: `4px solid ${countryColor}` }}
     >
       {/* Header */}
-      <CardHeader className="flex flex-row items-center justify-between p-4 bg-muted/20">
-        <div className="flex items-center gap-3 font-semibold text-card-foreground">
+      <CardHeader className="flex flex-row items-center justify-between p-4 bg-muted/20 gap-2">
+        <div className="flex items-center gap-3 font-semibold text-card-foreground min-w-0">
           {countryFlags[order.countryCode]}
-          <span>{order.id}</span>
+          <div className="flex flex-col min-w-0">
+            <span className="truncate">{order.id}</span>
+            <span className="text-[11px] font-normal text-muted-foreground truncate md:hidden">{order.customer.name}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1 text-[12px] text-muted-foreground md:justify-end">
+        <div className="flex items-center gap-1 text-[12px] text-muted-foreground shrink-0">
           {order.date}
         </div>
       </CardHeader>
@@ -109,6 +112,7 @@ export function OrderRow({
                 size="icon"
                 className="h-7 w-7 bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
                 type="button"
+                aria-label={isExpanded ? 'Hide details' : 'Show details'}
                 onClick={() => onToggleDetails(order.id)}
               >
                 {isExpanded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -143,6 +147,7 @@ export function OrderRow({
                     size="icon"
                     className="h-7 w-7 bg-transparent text-muted-foreground hover:bg-purple-500/20 hover:text-white active:bg-purple-500/30"
                     type="button"
+                    aria-label="Edit order details"
                     onClick={() => onEditOrder(order)}
                   >
                     <Pencil className="h-4 w-4" />

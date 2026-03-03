@@ -245,7 +245,7 @@ export function OrderFilters({
                       <span className="font-semibold text-[11px]">{order.id}</span>
                       <span className="text-[11px] text-muted-foreground">{order.customer.name}</span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{order.status}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase">{order.countryCode}</span>
                   </button>
                 ))}
               </div>

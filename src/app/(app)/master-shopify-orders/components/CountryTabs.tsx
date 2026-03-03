@@ -21,10 +21,12 @@ const countries: { code: CountryCode; label: string; flag: React.ReactNode }[] =
 
 export function CountryTabs({ activeFilter, pendingCounts, onFilterChange }: CountryTabsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2 overflow-x-auto scrollbar-none" role="tablist" aria-label="Filter by country">
       {countries.map(({ code, label, flag }) => (
         <Button
           key={code}
+          role="tab"
+          aria-selected={activeFilter === code}
           variant={activeFilter === code ? 'default' : 'outline'}
           onClick={() => onFilterChange(code)}
           className={`
