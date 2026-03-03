@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Pencil, StickyNote, Eye, EyeOff } from 'lucide-react';
+import { Pencil, StickyNote, Eye, EyeOff, DollarSign } from 'lucide-react';
 import { countryFlags } from './CountryFlags';
 import { TrackingInput } from './TrackingInput';
 import type { Order } from '../types';
@@ -137,7 +137,7 @@ export function OrderRow({
               </div>
             )}
 
-            {/* Collapsed panel — Customer Details */}
+            {/* Collapsed panel — Customer Details + Cost */}
             {isExpanded && (
               <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
                 <div className="flex items-center justify-between">
@@ -156,6 +156,32 @@ export function OrderRow({
                 <p className="font-medium">{order.customer.name}</p>
                 <p className="text-muted-foreground whitespace-pre-line">{order.customer.address}</p>
                 <p className="text-muted-foreground">{order.customer.phone}</p>
+
+                {/* Cost Summary */}
+                <div className="mt-3 pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <DollarSign className="h-3 w-3 text-purple-400" />
+                    <p className="text-xs font-semibold">Supplier Cost</p>
+                  </div>
+                  {order.cost ? (
+                    <div className="grid grid-cols-3 gap-1 text-center">
+                      <div className="rounded border border-white/5 py-1">
+                        <p className="text-[9px] text-muted-foreground">Prod</p>
+                        <p className="text-[11px] font-medium">${order.cost.production_cost?.toFixed(2) ?? '—'}</p>
+                      </div>
+                      <div className="rounded border border-white/5 py-1">
+                        <p className="text-[9px] text-muted-foreground">Ship</p>
+                        <p className="text-[11px] font-medium">${order.cost.shipping_cost?.toFixed(2) ?? '—'}</p>
+                      </div>
+                      <div className="rounded border border-purple-500/20 bg-purple-500/5 py-1">
+                        <p className="text-[9px] text-muted-foreground">Total</p>
+                        <p className="text-[11px] font-semibold text-purple-400">${order.cost.total_cost?.toFixed(2) ?? '—'}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground italic">Not calculated</p>
+                  )}
+                </div>
               </div>
             )}
           </div>

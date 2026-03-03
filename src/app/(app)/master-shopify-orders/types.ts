@@ -17,6 +17,13 @@ export type Customer = {
   phone: string;
 };
 
+export type OrderCost = {
+  production_cost: number | null;
+  shipping_cost: number | null;
+  total_cost: number | null;
+  currency: string;
+};
+
 export type Order = {
   id: string;
   country: string;
@@ -28,6 +35,7 @@ export type Order = {
   items: Product[];
   note?: string;
   supabaseId?: string;
+  cost?: OrderCost | null;
 };
 
 export type CountryCode = 'ALL' | 'PT' | 'DE' | 'ES' | 'GB';

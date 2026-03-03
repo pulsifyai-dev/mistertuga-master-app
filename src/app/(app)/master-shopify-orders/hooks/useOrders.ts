@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
-import type { Order, Product, Customer } from '../types';
+import type { Order, OrderCost, Product, Customer } from '../types';
 
 // Supabase row types (from normalized schema)
 interface SupabaseOrderRow {
@@ -33,6 +33,12 @@ interface SupabaseOrderRow {
     quantity: number;
     thumbnail_url: string | null;
     version: string | null;
+  }[];
+  order_costs: {
+    production_cost: number | null;
+    shipping_cost: number | null;
+    total_cost: number | null;
+    currency: string;
   }[];
 }
 
@@ -86,6 +92,16 @@ function mapRow(row: SupabaseOrderRow): Order {
     version: item.version || '',
   }));
 
+  const costRow = row.order_costs?.[0] ?? null;
+  const cost: OrderCost | null = costRow
+    ? {
+        production_cost: costRow.production_cost,
+        shipping_cost: costRow.shipping_cost,
+        total_cost: costRow.total_cost,
+        currency: costRow.currency,
+      }
+    : null;
+
   return {
     id: row.order_number,
     country: row.country_code,
@@ -97,6 +113,7 @@ function mapRow(row: SupabaseOrderRow): Order {
     items,
     note: row.note || undefined,
     supabaseId: row.id,
+    cost,
   };
 }
 
@@ -127,6 +144,12 @@ const ORDERS_QUERY = `
     quantity,
     thumbnail_url,
     version
+  ),
+  order_costs (
+    production_cost,
+    shipping_cost,
+    total_cost,
+    currency
   )
 `;
 

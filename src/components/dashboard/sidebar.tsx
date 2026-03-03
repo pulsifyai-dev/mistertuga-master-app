@@ -16,6 +16,7 @@ import {
   ShoppingBag,
   RefreshCw,
   AlertCircle,
+  DollarSign,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -46,6 +47,12 @@ const ALL_SIDEBAR_ITEMS = [
     href: "/mistake-handling",
     icon: AlertCircle,
     requiresAdmin: false,
+  },
+  {
+    label: "Cost Rules",
+    href: "/cost-rules",
+    icon: DollarSign,
+    requiresAdmin: true,
   },
 ];
 
