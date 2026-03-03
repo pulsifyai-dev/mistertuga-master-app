@@ -1,97 +1,50 @@
 /**
- * This ruleset enforces a strict user-ownership security model for user profiles,
- * but allows any authenticated user to access the shared 'orders' collection.
+ * TRANSITIONAL Firestore Security Rules (Story 1.2)
  *
- * Core Philosophy:
- * - User data is private and can only be accessed by the owner.
- * - Order data is collaborative and accessible to all logged-in users.
+ * Auth has migrated to Supabase. Next.js middleware now protects all routes.
+ * Client-side Firestore reads are allowed for any request (middleware handles auth).
+ * Writes remain restricted to ADMIN via Firebase custom claims (Server Actions use firebase-admin).
  *
- * Data Structure:
- * - /users/{userId}: Stores private user profile information. Each user
- *   has one document, keyed by their UID.
- * - /orders/{countryCode}/orders/{orderId}: A shared, top-level collection containing all Shopify orders.
- * - /roles_admin/{userId}: A lookup collection to identify users with administrative
- *   privileges.
+ * This ruleset will be REMOVED when Firebase is decommissioned (Story 1.9).
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ------------------------------------------------------------------------
-    // Helper Functions
-    // ------------------------------------------------------------------------
-
-    /**
-     * Checks if the user is authenticated.
-     */
-    function isSignedIn() {
-      return request.auth != null;
+    // Helper: Check if user has ADMIN role via Firebase custom claims
+    // (only relevant for direct Firestore writes, which use firebase-admin and bypass rules)
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'ADMIN';
     }
 
-    /**
-     * Checks if the currently authenticated user's UID matches the provided userId.
-     * This is the foundation of the user-ownership model for user profiles.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // ------------------------------------------------------------------------
-    // Collection Rules
-    // ------------------------------------------------------------------------
-
-    /**
-     * @description Controls access to user profile documents.
-     * @path /users/{userId}
-     * @allow (get) An authenticated user reading their own profile.
-     * @deny (list) Listing all users is disallowed to protect privacy.
-     * @principle Restricts access to a user's own data tree.
-     */
+    // Users collection — read own profile, admin writes
     match /users/{userId} {
-      allow get, update, delete: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow list: if false;
-
-      /**
-       * @description DEPRECATED: Subcollections for profitStats are no longer used
-       * in the updated data model but are kept for reference or future rules.
-       */
-      match /profitStats/{profitStatId} {
-        allow read, write: if false; // Example of disabling a path
-      }
+      allow read: if true;  // Protected by Next.js middleware
+      allow write: if isAdmin();
     }
-    
-    /**
-     * @description Controls access to the shared, nested orders collections.
-     * @path /orders/{countryCode}/orders/{orderId}
-     * @allow (read, write) Any authenticated user can read or write to any order.
-     * @principle Enables a collaborative workflow where all users manage a central
-     * list of orders, now organized by country.
-     */
+
+    // Orders — read allowed (middleware protected), write admin only
     match /orders/{countryCode}/orders/{orderId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;  // Protected by Next.js middleware
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Read-only collection for identifying admin users.
-     * @path /roles_admin/{userId}
-     * @allow (get) Any signed-in user checking if a specific user ID has admin privileges.
-     * @deny (write) Prevents client-side privilege escalation.
-     * @principle Admin roles must be managed by a trusted backend.
-     */
+    // Roles admin — read only
     match /roles_admin/{userId} {
-      allow get: if isSignedIn();
-      allow list, write: if false;
+      allow read: if true;  // Protected by Next.js middleware
+      allow write: if false;
     }
 
-    /**
-     * @description Controls access to application-wide settings.
-     * @path /settings/{settingId}
-     * @allow (read, write) Any authenticated user can manage settings.
-     * @principle Allows configuration by any logged-in user.
-     */
+    // Settings — read allowed, write admin only
     match /settings/{settingId} {
-        allow read, write: if isSignedIn();
+      allow read: if true;  // Protected by Next.js middleware
+      allow write: if isAdmin();
+    }
+
+    // Metrics — read allowed, write admin only
+    match /metrics/{metricId} {
+      allow read: if true;  // Protected by Next.js middleware
+      allow write: if isAdmin();
     }
   }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useFirebase } from '@/firebase';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,7 +78,8 @@ const pad = (n: number) => n.toString().padStart(2, '0');
 
 // --- Main Page Component ---
 export default function MasterShopifyOrdersPage() {
-  const { firestore, user, isUserLoading } = useFirebase();
+  const { firestore } = useFirebase();
+  const { user, loading: isUserLoading } = useAuth();
     
     // Tabs
   const [orderTab, setOrderTab] = useState<"pending" | "shipped">("pending");
@@ -314,8 +316,8 @@ export default function MasterShopifyOrdersPage() {
   };
 
   const handleUpdateOrder = async (data: EditOrderSchema) => {
-    if (!editingOrder) return;
-  
+    if (!editingOrder || !user) return;
+
     try {
       const result = await updateOrderDetails({
         orderId: editingOrder.id,

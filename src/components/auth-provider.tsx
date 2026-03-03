@@ -1,15 +1,15 @@
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
-import type { User } from 'firebase/auth';
-import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
-  role: 'ADMIN' | 'FORNECEDOR' | null; // <-- Corrigido para FORNECEDOR
-  isAdmin: boolean; 
+  role: 'ADMIN' | 'FORNECEDOR' | null;
+  isAdmin: boolean;
+  assignedCountries: string[];
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -19,39 +19,51 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<'ADMIN' | 'FORNECEDOR' | null>(null);
+  const [assignedCountries, setAssignedCountries] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const supabase = createClient();
+
+    // Get initial session
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUser(user);
-        try {
-          const tokenResult = await user.getIdTokenResult();
-          const userRole = (tokenResult.claims.role as 'ADMIN' | 'FORNECEDOR') || 'FORNECEDOR'; // <-- Corrigido
-          setRole(userRole);
-        } catch (error) {
-          console.error("Error fetching custom claims:", error);
-          setRole('FORNECEDOR'); // Assume a role mais restritiva em caso de erro
-        }
-      } else {
-        setUser(null);
-        setRole(null);
+        const userRole = (user.app_metadata?.user_role as 'ADMIN' | 'FORNECEDOR') || 'FORNECEDOR';
+        setRole(userRole);
+        setAssignedCountries(user.app_metadata?.assigned_countries || []);
       }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Listen for auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        const userRole = (session.user.app_metadata?.user_role as 'ADMIN' | 'FORNECEDOR') || 'FORNECEDOR';
+        setRole(userRole);
+        setAssignedCountries(session.user.app_metadata?.assigned_countries || []);
+      } else {
+        setUser(null);
+        setRole(null);
+        setAssignedCountries([]);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {
-    // Só precisamos de chamar o signOut do Firebase.
-    // O onAuthStateChanged tratará de limpar o estado (user e role).
-    await firebaseSignOut(auth);
+    const supabase = createClient();
+    await supabase.auth.signOut();
   };
-  
+
   const isAdmin = role === 'ADMIN';
 
-  const value = { user, role, isAdmin, loading, signOut }; 
+  const value = { user, role, isAdmin, assignedCountries, loading, signOut };
 
   return (
     <AuthContext.Provider value={value}>
@@ -66,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Hook personalizado para facilitar o uso do contexto
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

@@ -85,10 +85,10 @@ export default function DashboardSidebar() {
       <SidebarHeader className="border-b border-white/10 px-4 py-4">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold">
-            {user?.displayName ? user.displayName[0].toUpperCase() : 'MT'}
+            {user?.user_metadata?.name ? user.user_metadata.name[0].toUpperCase() : 'MT'}
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold">{user?.displayName || 'Usuário'}</span>
+            <span className="text-sm font-semibold">{user?.user_metadata?.name || 'User'}</span>
             <span className="text-[11px] text-muted-foreground">
               {role ? `${role} Access` : user?.email || 'Operations'}
             </span>

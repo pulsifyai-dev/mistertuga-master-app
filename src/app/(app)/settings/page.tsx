@@ -1,40 +1,36 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-// 💡 MUDANÇA: Agora também importa isAdmin e isLoading
-import { useAuth } from '@/hooks/use-auth'; 
+import { useAuth } from '@/hooks/use-auth';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock } from 'lucide-react'; // Adicionado Lock icon
-import { updateProfile, updatePassword } from 'firebase/auth';
+import { Loader2, Lock } from 'lucide-react';
 
 export default function SettingsPage() {
-  // 💡 MUDANÇA: Obter isAdmin e isLoading
-  const { user, isAdmin, isLoading } = useAuth(); 
-  const { firestore, auth } = useFirebase();
+  const { user, isAdmin, loading: isLoading } = useAuth();
+  const { firestore } = useFirebase();
   const { toast } = useToast();
   const [webhookUrl, setWebhookUrl] = useState('');
   const [name, setName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  // Renomeei 'loading' para 'loadingWebhook' para maior clareza
-  const [loadingWebhook, setLoadingWebhook] = useState(true); 
+  const [loadingWebhook, setLoadingWebhook] = useState(true);
   const [savingWebhook, setSavingWebhook] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     if (user) {
-      setName(user.displayName || '');
+      setName(user.user_metadata?.name || user.user_metadata?.full_name || '');
     }
   }, [user]);
 
   useEffect(() => {
-    // 💡 CONDIÇÃO: Apenas tentar buscar a URL se for admin
     if (!firestore || !isAdmin) return;
 
     const fetchWebhookUrl = async () => {
@@ -48,10 +44,10 @@ export default function SettingsPage() {
     };
 
     fetchWebhookUrl();
-  }, [firestore, isAdmin]); // 💡 Adicionado isAdmin como dependência
+  }, [firestore, isAdmin]);
 
   const handleSaveWebhook = async () => {
-    if (!firestore || !isAdmin) return; // Checagem final de segurança antes de tentar salvar
+    if (!firestore || !isAdmin) return;
     setSavingWebhook(true);
     try {
       const settingsRef = doc(firestore, "settings", "tracking");
@@ -72,8 +68,8 @@ export default function SettingsPage() {
   };
 
   const handleSaveProfile = async () => {
-    if (!user || !auth) return;
-    if (newPassword !== confirmPassword) {
+    if (!user) return;
+    if (newPassword && newPassword !== confirmPassword) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -84,16 +80,20 @@ export default function SettingsPage() {
 
     setSavingProfile(true);
     try {
-      if (name !== user.displayName) {
-        await updateProfile(user, { displayName: name });
-        if (firestore) {
-            const userRef = doc(firestore, "users", user.uid);
-            await setDoc(userRef, { displayName: name }, { merge: true });
-        }
+      const supabase = createClient();
+      const updates: { data?: { name: string }; password?: string } = {};
+
+      if (name !== (user.user_metadata?.name || '')) {
+        updates.data = { name };
       }
 
       if (newPassword) {
-        await updatePassword(user, newPassword);
+        updates.password = newPassword;
+      }
+
+      if (updates.data || updates.password) {
+        const { error } = await supabase.auth.updateUser(updates);
+        if (error) throw error;
       }
 
       toast({
@@ -112,12 +112,12 @@ export default function SettingsPage() {
       setConfirmPassword('');
     }
   };
-  
+
   if (isLoading) {
     return (
-        <div className="flex justify-center items-center h-[300px]">
-            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-        </div>
+      <div className="flex justify-center items-center h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
     );
   }
 
@@ -143,12 +143,12 @@ export default function SettingsPage() {
               <Label htmlFor="name">Name</Label>
               <Input id="name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-             <div className="space-y-2">
+            <div className="space-y-2">
               <Label htmlFor="new-password">New Password</Label>
               <Input id="new-password" type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
-             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label  >
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm New Password</Label>
               <Input id="confirm-password" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
             </div>
           </CardContent>
@@ -160,7 +160,6 @@ export default function SettingsPage() {
           </CardFooter>
         </Card>
 
-        {/* 💡 CONDIÇÃO: Renderizar o cartão do Webhook APENAS se for Admin */}
         {isAdmin ? (
           <Card>
             <CardHeader>
@@ -171,9 +170,9 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               {loadingWebhook ? (
-                  <div className="flex justify-center items-center h-10">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
+                <div className="flex justify-center items-center h-10">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
               ) : (
                 <div className="space-y-2">
                   <Label htmlFor="webhook-url">Webhook URL</Label>
@@ -194,10 +193,9 @@ export default function SettingsPage() {
             </CardFooter>
           </Card>
         ) : (
-          // 💡 ALTERNATIVA: Exibir uma mensagem de Acesso Negado para o usuário básico
           <Card className="flex flex-col items-center justify-center text-center p-8 bg-black/30 border-red-500/20">
             <Lock className="h-8 w-8 text-red-500 mb-4" />
-            <CardTitle className="text-xl">Acesso Restrito</CardTitle>
+            <CardTitle className="text-xl">Restricted Access</CardTitle>
             <CardDescription className="mt-2">
               Webhook management is an exclusive feature for Admins only.
             </CardDescription>

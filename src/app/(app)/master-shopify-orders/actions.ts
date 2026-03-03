@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { adminDb } from '@/lib/firebase/server';
+import { requireAdmin } from '@/lib/supabase/auth';
 import { revalidatePath } from 'next/cache';
 
 const updateOrderSchema = z.object({
@@ -24,16 +25,19 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
   const { orderId, countryCode, customerName, customerAddress, customerPhone, trackingNumber, note } = validation.data;
 
   try {
+    // Verify authentication and admin role via Supabase
+    await requireAdmin();
+
     const orderRef = adminDb.collection('orders').doc(countryCode).collection('orders').doc(orderId);
 
-    // 1. Ler os dados atuais
+    // 1. Read current data
     const doc = await orderRef.get();
     if (!doc.exists) {
         return { success: false, error: 'Order not found.' };
     }
     const currentData = doc.data();
 
-    // 2. Preparar payload de atualização
+    // 2. Prepare update payload
     const updatePayload: { [key: string]: any } = {
       'customer.name': customerName,
       'customer.address': customerAddress,
@@ -48,16 +52,15 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
       }
     }
 
-    // 3. Atualizar na Base de Dados
+    // 3. Update in database
     await orderRef.update(updatePayload);
 
-    // 4. Enviar Webhook
+    // 4. Send webhook
     try {
       const settingsDoc = await adminDb.collection('settings').doc('tracking').get();
-      const webhookUrl = settingsDoc.data()?.webhookUrl;
+      const webhookUrl = settingsDoc.data()?.url;
 
       if (webhookUrl) {
-        // Combinar dados antigos com os novos para enviar objeto completo
         const webhookPayload = {
             ...currentData,
             customer: {
@@ -91,7 +94,6 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
       }
     } catch (webhookError) {
       console.error("Error sending webhook:", webhookError);
-      // Não falhamos a operação principal se o webhook falhar
     }
 
     revalidatePath('/master-shopify-orders');
@@ -99,10 +101,9 @@ export async function updateOrderDetails(data: z.infer<typeof updateOrderSchema>
 
   } catch (error: any) {
     console.error("Error updating order details:", error);
-    
-    // Verificação específica de erro de credenciais
-    if (error.message && error.message.includes("Firebase Admin SDK environment variables are not set")) {
-        return { success: false, error: "Erro de Servidor: Credenciais Firebase em falta." };
+
+    if (error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
+      return { success: false, error: error.message };
     }
 
     return { success: false, error: error.message || 'An unexpected server error occurred.' };
