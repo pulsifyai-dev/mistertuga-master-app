@@ -17,6 +17,7 @@ import { CountryTabs } from './components/CountryTabs';
 import { OrderFilters } from './components/OrderFilters';
 import { OrdersTable } from './components/OrdersTable';
 import { OrderEditDialog } from './components/OrderEditDialog';
+import { ExportPanel } from './components/ExportPanel';
 
 export default function MasterShopifyOrdersPage() {
   const { toast } = useToast();
@@ -197,6 +198,9 @@ export default function MasterShopifyOrdersPage() {
             onFilterChange={handleFilterChange}
           />
         </div>
+
+        {/* Supplier Export Panel */}
+        <ExportPanel activeCountry={filters.activeFilter} />
 
         {/* Empty state */}
         {!pageLoading && orders.length === 0 && <OrderEmptyState />}
