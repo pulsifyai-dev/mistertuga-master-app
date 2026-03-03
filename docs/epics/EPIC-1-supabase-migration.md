@@ -4,7 +4,7 @@
 **Epic ID:** EPIC-1
 **Author:** @pm (Morgan) — Brownfield Discovery Phase 10
 **Date:** 2026-03-02
-**Status:** IN PROGRESS (9/11 Done, 1 InProgress, 1 Ready)
+**Status:** IN PROGRESS (9/11 Done, 2 InProgress — deployed to Vercel)
 **Scenario:** B (Quality Migration)
 
 **Source:** `docs/architecture/technical-debt-assessment.md` (Phase 8 FINAL)
@@ -174,7 +174,7 @@ Stories are organized in dependency waves. Stories within the same wave can be p
 | [1.7](../stories/1.7.story.md) | Integration: Webhook + Language + Auth Provider | Done | 2 |
 | [1.8](../stories/1.8.story.md) | End-to-End Testing | InProgress | 3 |
 | [1.9](../stories/1.9.story.md) | Firebase Cleanup + Deployment | Done | 3 |
-| [1.10](../stories/1.10.story.md) | Go-Live + Monitoring | Ready | 3 |
+| [1.10](../stories/1.10.story.md) | Go-Live + Monitoring | InProgress | 3 |
 
 ---
 
