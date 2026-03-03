@@ -131,9 +131,12 @@ export default function ExchangesPage() {
         statusCounts={filters.statusCounts}
         searchQuery={filters.searchQuery}
         searchMatches={filters.searchMatches}
+        sortField={filters.sortField}
+        sortDirection={filters.sortDirection}
         onStatusChange={filters.setStatusFilter}
         onSearchChange={filters.setSearchQuery}
         onSelectSearchResult={handleSearchSelect}
+        onSort={filters.handleSort}
       />
 
       {/* List */}

@@ -59,6 +59,9 @@ export async function createCostRule(data: CostRuleInput) {
 }
 
 export async function updateCostRule(id: string, data: CostRuleInput) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return { success: false as const, error: 'Invalid ID.' };
+  }
   const validation = costRuleSchema.safeParse(data);
   if (!validation.success) {
     return { success: false as const, error: 'Invalid input.' };
@@ -121,6 +124,9 @@ export async function recalculateAllCosts() {
 }
 
 export async function deleteCostRule(id: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return { success: false as const, error: 'Invalid ID.' };
+  }
   try {
     const { user } = await requireAdmin();
     const rl = rateLimit(`costRule:${user.id}`, 20, 60_000);

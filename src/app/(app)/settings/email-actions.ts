@@ -64,6 +64,9 @@ export async function updateEmailTemplate(
   id: string,
   data: { name: string; subject_template: string; body_template: string; is_active?: boolean }
 ) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return { success: false, error: 'Invalid ID.' };
+  }
   const validation = emailTemplateSchema.safeParse(data);
   if (!validation.success) {
     return { success: false, error: 'Invalid input.' };
@@ -99,6 +102,9 @@ export async function updateEmailTemplate(
 }
 
 export async function deleteEmailTemplate(id: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return { success: false, error: 'Invalid ID.' };
+  }
   try {
     const { user } = await requireAdmin();
     const rl = rateLimit(`emailTemplate:${user.id}`, 10, 60_000);

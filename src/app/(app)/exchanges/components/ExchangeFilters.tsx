@@ -2,18 +2,37 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Search, X } from 'lucide-react';
+import { Search, X, ArrowUpDown } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { EXCHANGE_STATUSES, EXCHANGE_STATUS_LABELS } from '../types';
 import type { Exchange, ExchangeStatus } from '../types';
+
+type SortField = 'created_at' | 'order_number' | 'customer_name' | 'status';
+
+const SORT_OPTIONS: Array<{ value: SortField; label: string }> = [
+  { value: 'created_at', label: 'Date' },
+  { value: 'order_number', label: 'Order #' },
+  { value: 'customer_name', label: 'Customer' },
+  { value: 'status', label: 'Status' },
+];
 
 interface ExchangeFiltersProps {
   statusFilter: 'all' | ExchangeStatus;
   statusCounts: Record<string, number>;
   searchQuery: string;
   searchMatches: Exchange[];
+  sortField: SortField;
+  sortDirection: 'asc' | 'desc';
   onStatusChange: (status: 'all' | ExchangeStatus) => void;
   onSearchChange: (query: string) => void;
   onSelectSearchResult: (exchange: Exchange) => void;
+  onSort: (field: SortField) => void;
 }
 
 export function ExchangeFilters({
@@ -21,9 +40,12 @@ export function ExchangeFilters({
   statusCounts,
   searchQuery,
   searchMatches,
+  sortField,
+  sortDirection,
   onStatusChange,
   onSearchChange,
   onSelectSearchResult,
+  onSort,
 }: ExchangeFiltersProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -62,8 +84,35 @@ export function ExchangeFilters({
         })}
       </div>
 
+      {/* Sort */}
+      <div className="flex items-center gap-1 ml-auto">
+        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+        <Select
+          value={sortField}
+          onValueChange={(v) => onSort(v as SortField)}
+        >
+          <SelectTrigger className="h-8 w-28 text-xs bg-transparent border-white/10">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 text-xs text-muted-foreground hover:text-white"
+          onClick={() => onSort(sortField)}
+          aria-label={`Sort ${sortDirection === 'asc' ? 'descending' : 'ascending'}`}
+        >
+          {sortDirection === 'asc' ? '\u2191' : '\u2193'}
+        </Button>
+      </div>
+
       {/* Search */}
-      <div className={`relative transition-all duration-200 ml-auto ${isSearchExpanded ? 'w-60' : 'w-8'}`}>
+      <div className={`relative transition-all duration-200 ${isSearchExpanded ? 'w-60' : 'w-8'}`}>
         <div
           className={`flex items-center overflow-hidden rounded-full px-2 py-1 transition-all duration-200 ${
             isSearchExpanded

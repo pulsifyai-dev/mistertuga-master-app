@@ -5,6 +5,17 @@ import { requireAdmin } from '@/lib/supabase/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { rateLimit } from '@/lib/rate-limit';
 
+// --- Validation ---
+
+const VALID_COUNTRIES = ['PT', 'ES', 'DE'] as const;
+type ValidCountry = typeof VALID_COUNTRIES[number];
+
+function isValidCountryCode(code: string): code is ValidCountry {
+  return VALID_COUNTRIES.includes(code as ValidCountry);
+}
+
+const FILE_URL_PATTERN = /^[A-Z]{2}\/[A-Z]{2}_orders_\d{4}-\d{2}-\d{2}_.+\.xlsx$/;
+
 // --- Types ---
 
 type ExportOrder = {
@@ -76,6 +87,7 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
 
 export async function getExportableOrderCount(countryCode: string) {
   try {
+    if (!isValidCountryCode(countryCode)) return { success: false as const, count: 0 };
     await requireAdmin();
     const supabase = createServiceClient();
 
@@ -132,6 +144,9 @@ export async function getExportHistory(countryCode?: string) {
 
 export async function getExportDownloadUrl(fileUrl: string) {
   try {
+    if (!FILE_URL_PATTERN.test(fileUrl)) {
+      return { success: false as const, error: 'Invalid file path.' };
+    }
     await requireAdmin();
     const supabase = createServiceClient();
 
@@ -150,6 +165,9 @@ export async function getExportDownloadUrl(fileUrl: string) {
 
 export async function generateSupplierExport(countryCode: string) {
   try {
+    if (!isValidCountryCode(countryCode)) {
+      return { success: false as const, error: 'Invalid country code.' };
+    }
     const { user } = await requireAdmin();
     const rl = rateLimit(`supplierExport:${user.id}`, 3, 60_000);
     if (!rl.success) {
@@ -383,7 +401,8 @@ export async function generateSupplierExport(countryCode: string) {
         ...item,
         export_id: exportRecord.id,
       }));
-      await supabase.from('supplier_export_items').insert(itemsToInsert);
+      const { error: itemsError } = await supabase.from('supplier_export_items').insert(itemsToInsert);
+      if (itemsError) console.error('Failed to insert export items:', itemsError);
     }
 
     // 9. Update checkpoint

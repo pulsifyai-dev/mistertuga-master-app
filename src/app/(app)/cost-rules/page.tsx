@@ -75,6 +75,7 @@ export default function CostRulesPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this cost rule? This will affect future cost calculations.')) return;
     const result = await deleteCostRule(id);
     if (result.success) {
       toast({ title: 'Cost rule deleted' });
