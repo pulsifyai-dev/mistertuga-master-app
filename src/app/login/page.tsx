@@ -72,16 +72,14 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
       });
-      if (error) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-      } else {
-        setResetSent(true);
-      }
+      // Always show success — never reveal whether the email exists or not
+      setResetSent(true);
     } catch {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to send reset email.' });
+      // Still show success to prevent user enumeration
+      setResetSent(true);
     } finally {
       setLoading(false);
     }
@@ -169,7 +167,7 @@ export default function LoginPage() {
                 <div className="space-y-4">
                   <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-4 text-center">
                     <p className="text-sm text-green-300">
-                      Password reset email sent to <strong>{resetEmail}</strong>. Check your inbox.
+                      If an account exists for <strong>{resetEmail}</strong>, a password reset link has been sent. Check your inbox.
                     </p>
                   </div>
                   <Button
